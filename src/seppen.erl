@@ -3,6 +3,9 @@
 -behaviour(application).
 -behaviour(supervisor).
 
+-type key() :: binary().
+-type value() :: binary().
+
 %% public API
 -export([list/0, get/1, set/2, delete/1]).
 
@@ -12,20 +15,27 @@
 %% supervisor callbacks
 -export([start_link/0, init/1]).
 
+-define(STORE, seppen_store).
+
 
 %% Public API
 
+-spec list() -> [key()].
 list() ->
-    [].
+    Keys = gen_server:call(?STORE, list),
+    lists:sort(Keys).
 
-get(_) ->
-    {}.
+-spec get(key()) -> {ok, value()} | {error, term()}.
+get(Key) ->
+    gen_server:call(?STORE, {get, Key}).
 
-set(_, _) ->
-    ok.
+-spec set(key(), value()) -> ok | {error, term()}.
+set(Key, Value) ->
+    gen_server:call(?STORE, {set, Key, Value}).
 
-delete(_) ->
-    ok.
+-spec delete(key()) -> ok | {error, term()}.
+delete(Key) ->
+    gen_server:call(?STORE, {delete, Key}).
 
 
 %% application callbacks
