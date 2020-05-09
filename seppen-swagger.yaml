@@ -1,0 +1,64 @@
+swagger: "2.0"
+info:
+  description: "Simple distributed in-memory key-value store"
+  version: "1.0.0"
+  title: "Seppen"
+host: "localhost:21285"
+basePath: "/"
+schemes:
+- "http"
+paths:
+  /:
+    get:
+      summary: "Returns list of the keys"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "ok"
+          schema:
+            type: "array"
+            items:
+              type: "string"
+  /{key}:
+    parameters:
+    - name: "key"
+      in: "path"
+      description: "key of the stored record"
+      required: true
+      type: "string"
+    get:
+      summary: "Return value for a given key"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "ok"
+          schema:
+            type: "object"
+        404:
+          description: "not found"
+    put:
+      summary: "Store given payload under a given key"
+      parameters:
+      - in: "body"
+        name: "value"
+        required: true
+        schema:
+          type: "object"
+      produces:
+      - "application/json"
+      responses:
+        201:
+          description: "created"
+        500:
+          description: "internal server error"
+    delete:
+      summary: "Delete record for a given key"
+      produces:
+      - "application/json"
+      responses:
+        204:
+          description: "no content"
+        500:
+          description: "internal server error"
