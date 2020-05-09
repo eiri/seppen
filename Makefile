@@ -9,6 +9,15 @@ all: build
 build:
 	rebar3 compile
 
+.PHONY: test
+test:
+	rebar3 ct
+
 .PHONY: run
 run:
 	rebar3 shell --apps=$(PROJECT)
+
+.PHONY: clean
+clean:
+	rm -rf $(CURDIR)/_build/test
+	rebar3 clean
