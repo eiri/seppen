@@ -1,0 +1,16 @@
+{application, seppen, [
+    {description, "Simple distributed in-memory key-value store "},
+    {vsn, "1.0.0"},
+    {modules, [
+        seppen,
+        seppen_store
+    ]},
+    {registered, [seppen, seppend_sup, seppen_store]},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        sasl
+    ]},
+    {mod, {seppen, []}}
+]}.
