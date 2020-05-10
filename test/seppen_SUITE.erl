@@ -14,6 +14,7 @@
 
 -export([
      storage_set/1,
+     storage_set_conflict/1,
      storage_get/1,
      storage_get_missing/1,
      storage_member/1,
@@ -60,6 +61,7 @@ all() ->
 groups() ->
      [{storage, [sequence], [
           storage_set,
+          storage_set_conflict,
           storage_get,
           storage_get_missing,
           storage_member,
@@ -84,8 +86,15 @@ storage_set(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           Value = <<I:32>>,
-          ok = seppen:set(Key, Value)
+          ?assertEqual(ok, seppen:set(Key, Value))
      end, lists:seq(1, 10)).
+
+storage_set_conflict(_Config) ->
+     lists:foreach(fun(I) ->
+          Key = <<I:8>>,
+          Value = <<(I-10):32>>,
+          ?assertEqual({error, conflict}, seppen:set(Key, Value))
+     end, lists:seq(11, 20)).
 
 storage_get(_Config) ->
      lists:foreach(fun(I) ->

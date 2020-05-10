@@ -30,10 +30,16 @@ handle_call({set, Key, Value}, _, Ctx) ->
         mkey := MKey
     } = Ctx,
     UID = crypto:mac(hmac, sha256, MKey, Value),
-    %% check if we already have different UID for this Key
-    true = ets:insert(Idx, #kv{key = Key, value = UID}),
-    true = ets:insert(Tid, #kv{key = UID, value = Value}),
-    {reply, ok, Ctx};
+    Reply =  case ets:member(Tid, UID) of
+        true ->
+            {error, conflict};
+        false ->
+            %% FIXME! actuall delete OldUID first
+            true = ets:insert(Idx, #kv{key = Key, value = UID}),
+            true = ets:insert(Tid, #kv{key = UID, value = Value}),
+            ok
+    end,
+    {reply, Reply, Ctx};
 handle_call({delete, Key}, _, #{tid := Tid, idx := Idx} = Ctx) ->
     [#kv{value = UID}] = ets:lookup(Idx, Key),
     true = ets:delete(Idx, Key),
