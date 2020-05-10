@@ -15,7 +15,7 @@ test:
 
 .PHONY: run
 run:
-	rebar3 shell --apps=$(PROJECT)
+	rebar3 shell --apps=$(PROJECT) --sname seppen --setcookie legNe7mIRCiMEy5X
 
 .PHONY: clean
 clean:
