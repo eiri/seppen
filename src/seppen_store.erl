@@ -10,7 +10,7 @@
     handle_cast/2
 ]).
 
--record(kv, {uid, key, value}).
+-record(kv, {key, value}).
 
 
 start_link() ->
@@ -18,29 +18,42 @@ start_link() ->
 
 
 init([]) ->
-    Tid = ets:new(?MODULE, [set, private, {keypos, #kv.uid}]),
-    {ok, #{tid => Tid}}.
+    MasterKey = erlang:atom_to_binary(erlang:get_cookie(), unicode),
+    Tid = ets:new(?MODULE, [set, private, {keypos, #kv.key}]),
+    Idx = ets:new(?MODULE, [set, private, {keypos, #kv.key}]),
+    {ok, #{tid => Tid, idx => Idx, mkey => MasterKey}}.
 
-handle_call({set, Key, Value}, _, #{tid := Tid} = Ctx) ->
-    true = ets:insert(Tid, #kv{uid = Key, key = Key, value = Value}),
+handle_call({set, Key, Value}, _, Ctx) ->
+    #{
+        tid := Tid,
+        idx := Idx,
+        mkey := MKey
+    } = Ctx,
+    UID = crypto:mac(hmac, sha256, MKey, Value),
+    %% check if we already have different UID for this Key
+    true = ets:insert(Idx, #kv{key = Key, value = UID}),
+    true = ets:insert(Tid, #kv{key = UID, value = Value}),
     {reply, ok, Ctx};
-handle_call({delete, Key}, _, #{tid := Tid} = Ctx) ->
-    Head = #kv{key = '$1', _ = '_'},
-    Match = {'==', '$1', Key},
-    1 = ets:select_delete(Tid, [{Head, [Match], [true]}]),
+handle_call({delete, Key}, _, #{tid := Tid, idx := Idx} = Ctx) ->
+    [#kv{value = UID}] = ets:lookup(Idx, Key),
+    true = ets:delete(Idx, Key),
+    true = ets:delete(Tid, UID),
     {reply, ok, Ctx};
-handle_call({member, Key}, _, #{tid := Tid} = Ctx) ->
-    IsMemeber = ets:member(Tid, Key),
+handle_call({member, Key}, _, #{idx := Idx} = Ctx) ->
+    IsMemeber = ets:member(Idx, Key),
     {reply, IsMemeber, Ctx};
-handle_call({get, Key}, _, #{tid := Tid} = Ctx) ->
-    Reply = case ets:lookup(Tid, Key) of
-        [#kv{value = Value}] -> {ok, Value};
-        [] -> {error, not_found}
+handle_call({get, Key}, _, #{tid := Tid, idx := Idx} = Ctx) ->
+    Reply = case ets:lookup(Idx, Key) of
+        [#kv{value = UID}] ->
+            [#kv{value = Value}] = ets:lookup(Tid, UID),
+            {ok, Value};
+        [] ->
+            {error, not_found}
     end,
     {reply, Reply, Ctx};
-handle_call(list, _, #{tid := Tid} = Ctx) ->
+handle_call(list, _, #{idx := Idx} = Ctx) ->
     Head = #kv{key = '$1', _ = '_'},
-    Keys = ets:select(Tid, [{Head, [], ['$1']}]),
+    Keys = ets:select(Idx, [{Head, [], ['$1']}]),
     {reply, Keys, Ctx};
 handle_call(_, _, Ctx) ->
     {stop, unknown_call, Ctx}.
