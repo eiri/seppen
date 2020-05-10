@@ -58,6 +58,8 @@ paths:
       responses:
         201:
           description: "created"
+        409:
+          description: "conflict"
         500:
           description: "internal server error"
     delete:
