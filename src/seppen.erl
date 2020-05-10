@@ -7,7 +7,7 @@
 -type value() :: binary().
 
 %% public API
--export([list/0, get/1, member/1, set/2, delete/1]).
+-export([list/0, get/1, member/1, uid/1, uid/2, set/2, delete/1]).
 
 %% application callbacks
 -export([start/2, stop/1]).
@@ -32,6 +32,14 @@ get(Key) ->
 -spec member(key()) -> boolean().
 member(Key) ->
     gen_server:call(?STORE, {member, Key}).
+
+%% @equiv uid(Key, [])
+uid(Key) ->
+    uid(Key, []).
+
+-spec uid(key(), [atom()]) -> binary() | {error, term()}.
+uid(Key, Opts) ->
+    gen_server:call(?STORE, {uid, Key, Opts}).
 
 -spec set(key(), value()) -> ok | {error, term()}.
 set(Key, Value) ->

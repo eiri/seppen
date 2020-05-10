@@ -5,7 +5,9 @@
     allowed_methods/2,
     content_types_accepted/2,
     content_types_provided/2,
-    resource_exists/2
+    resource_exists/2,
+    generate_etag/2,
+    expires/2
 ]).
 
 -export([
@@ -38,6 +40,17 @@ resource_exists(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
     IsMember = seppen:member(Key),
     {IsMember, Req, Ctx}.
+
+generate_etag(#{path := <<"/_keys">>} = Req, Ctx) ->
+    {undefined, Req, Ctx};
+generate_etag(Req, Ctx) ->
+    Key = cowboy_req:binding(key, Req),
+    UID = seppen:uid(Key, [as_hex]),
+    ETag = iolist_to_binary([$", UID, $"]),
+    {ETag, Req, Ctx}.
+
+expires(Req, Ctx) ->
+    {undefined, Req, Ctx}.
 
 
 get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->

@@ -29,6 +29,11 @@ paths:
       type: "string"
     get:
       summary: "Return value for a given key"
+      parameters:
+      - in: "header"
+        name: "If-None-Match"
+        required: false
+        type: "string"
       produces:
       - "application/json"
       responses:
@@ -36,6 +41,8 @@ paths:
           description: "ok"
           schema:
             type: "object"
+        304:
+          description: "not modified"
         404:
           description: "not found"
     put:
