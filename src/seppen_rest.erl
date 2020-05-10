@@ -63,8 +63,16 @@ get_resource(Req, Ctx) ->
 
 set_resource(Req0, Ctx) ->
     Key = cowboy_req:binding(key, Req0),
-    {ok, Value, Req} = cowboy_req:read_body(Req0),
-    ok = seppen:set(Key, Value),
+    {ok, Value, Req1} = cowboy_req:read_body(Req0),
+    Req = case seppen:set(Key, Value) of
+        ok ->
+            Req1;
+        {error, conflict} ->
+            %% FIXME! ok, the correct way to handle this is
+            %% 1. get UID for payload and check if it's in storage in resource_exists
+            %% 2. add method is_conflict, that always returns true
+            cowboy_req:reply(409, Req1)
+    end,
     {true, Req, Ctx}.
 
 delete_resource(Req, Ctx) ->

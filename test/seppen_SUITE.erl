@@ -26,6 +26,7 @@
 
 -export([
      rest_put/1,
+     rest_put_conflict/1,
      rest_get/1,
      rest_get_if_none_match/1,
      rest_get_missing/1,
@@ -72,6 +73,7 @@ groups() ->
      ]},
      {rest, [sequence], [
           rest_put,
+          rest_put_conflict,
           rest_get,
           rest_get_if_none_match,
           rest_get_missing,
@@ -163,9 +165,26 @@ rest_put(Config) ->
      NewConfig = [{payloads, Payloads}],
      {save_config, NewConfig}.
 
-rest_get(Config) ->
+rest_put_conflict(Config) ->
      BaseURL = ?config(base_url, Config),
      {rest_put, OldConfig} = ?config(saved_config, Config),
+     Payloads = ?config(payloads, OldConfig),
+     lists:foreach(fun(I) ->
+          URL = io_lib:format("~s/~b", [BaseURL, I]),
+          J = I - 10,
+          {J, Payload} = lists:keyfind(J, 1, Payloads),
+          Req = {URL, [], "application/json", Payload},
+          {ok, Resp} = httpc:request(put, Req, [], []),
+          {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
+          ?assertEqual(409, Code),
+          ?assertEqual([], Body)
+     end, lists:seq(21, 30)),
+     NewConfig = [{payloads, Payloads}],
+     {save_config, NewConfig}.
+
+rest_get(Config) ->
+     BaseURL = ?config(base_url, Config),
+     {rest_put_conflict, OldConfig} = ?config(saved_config, Config),
      Payloads = ?config(payloads, OldConfig),
      ETags = lists:map(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
