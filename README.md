@@ -96,7 +96,23 @@ paths:
 
 ## Build and test
 
-_TBD_
+```bash
+$ make build
+rebar3 compile
+===> Verifying dependencies...
+===> Compiling seppen
+
+```
+
+```bash
+$ make test
+rebar3 ct
+===> Verifying dependencies...
+===> Compiling seppen
+===> Running Common Test suites...
+%%% seppen_SUITE: ..............
+All 14 tests passed.
+```
 
 ## Deploy to Nomad
 
