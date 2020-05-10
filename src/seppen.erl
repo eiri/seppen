@@ -41,9 +41,18 @@ delete(Key) ->
 %% application callbacks
 
 start(_Type, _StartArgs) ->
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/[:key]", seppen_rest, []}]}
+    ]),
+    TransportOpts = [{port, 21285}],
+    ProtocolOpts = #{
+        env => #{dispatch => Dispatch}
+    },
+    {ok, _} = cowboy:start_clear(http, TransportOpts, ProtocolOpts),
     seppen:start_link().
 
 stop(_State) ->
+    cowboy:stop_listener(http),
     ok.
 
 
