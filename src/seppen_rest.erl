@@ -31,18 +31,28 @@ content_types_accepted(Req, Ctx) ->
 
 
 get_resource(Req, Ctx) ->
-    Body = <<"[]">>,
+    Body = case cowboy_req:binding(key, Req) of
+        undefined ->
+            jiffy:encode(seppen:list());
+        Key ->
+            {ok, Value} = seppen:get(Key),
+            Value
+    end,
     {Body, Req, Ctx}.
 
 set_resource(#{path := <<"/">>} = Req0, Ctx) ->
     Req = cowboy_req:reply(405, Req0),
     {true, Req, Ctx};
 set_resource(Req0, Ctx) ->
-    Req = cowboy_req:reply(201, Req0),
+    Key = cowboy_req:binding(key, Req0),
+    {ok, Value, Req} = cowboy_req:read_body(Req0),
+    ok = seppen:set(Key, Value),
     {true, Req, Ctx}.
 
 delete_resource(#{path := <<"/">>} = Req0, Ctx) ->
     Req = cowboy_req:reply(405, Req0),
     {true, Req, Ctx};
 delete_resource(Req, Ctx) ->
+    Key = cowboy_req:binding(key, Req),
+    ok = seppen:delete(Key),
     {true, Req, Ctx}.
