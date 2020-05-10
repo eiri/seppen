@@ -16,6 +16,7 @@
      storage_set/1,
      storage_get/1,
      storage_get_missing/1,
+     storage_member/1,
      storage_list/1,
      storage_delete/1,
      storage_empty_list/1
@@ -27,6 +28,7 @@
      rest_get_missing/1,
      rest_get_list/1,
      rest_delete/1,
+     rest_delete_missing/1,
      rest_get_empty_list/1
 ]).
 
@@ -56,6 +58,7 @@ groups() ->
           storage_set,
           storage_get,
           storage_get_missing,
+          storage_member,
           storage_list,
           storage_delete,
           storage_empty_list
@@ -66,6 +69,7 @@ groups() ->
           rest_get_missing,
           rest_get_list,
           rest_delete,
+          rest_delete_missing,
           rest_get_empty_list
      ]}].
 
@@ -88,6 +92,18 @@ storage_get_missing(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           ?assertEqual({error, not_found}, seppen:get(Key))
+     end, lists:seq(11, 20)).
+
+storage_member(_Config) ->
+     %% presented
+     lists:foreach(fun(I) ->
+          Key = <<I:8>>,
+          ?assert(seppen:member(Key))
+     end, lists:seq(1, 10)),
+     %% missing
+     lists:foreach(fun(I) ->
+          Key = <<I:8>>,
+          ?assertNot(seppen:member(Key))
      end, lists:seq(11, 20)).
 
 storage_list(_Config) ->
@@ -113,14 +129,14 @@ rest_put(Config) ->
           Req = {URL, [], "application/json", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
-          ?assertEqual(204, Code),
+          ?assertEqual(201, Code),
           ?assertEqual([], Body)
      end, lists:seq(11, 20)).
 
 rest_get(Config) ->
      BaseURL = ?config(base_url, Config),
      lists:foreach(fun(I) ->
-          URL = lists:flatten(io_lib:format("~s/~b", [BaseURL, I])),
+          URL = io_lib:format("~s/~b", [BaseURL, I]),
           Expected = #{<<"number">> => I},
           {ok, Resp} = httpc:request(URL),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
@@ -129,12 +145,20 @@ rest_get(Config) ->
      end, lists:seq(11, 20)).
 
 rest_get_missing(Config) ->
-     ok.
+     BaseURL = ?config(base_url, Config),
+     lists:foreach(fun(I) ->
+          URL = io_lib:format("~s/~b", [BaseURL, I]),
+          {ok, Resp} = httpc:request(URL),
+          {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
+          ?assertEqual(404, Code),
+          ?assertEqual([], Body)
+     end, lists:seq(21, 30)).
 
 rest_get_list(Config) ->
      BaseURL = ?config(base_url, Config),
+     URL = io_lib:format("~s/_keys", [BaseURL]),
      Expected = [integer_to_binary(I) || I <- lists:seq(11, 20)],
-     {ok, Resp} = httpc:request(BaseURL),
+     {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
      ?assertEqual(Expected, jiffy:decode(Body)).
@@ -149,9 +173,20 @@ rest_delete(Config) ->
           ?assertEqual([], Body)
      end, lists:seq(11, 20)).
 
+rest_delete_missing(Config) ->
+     BaseURL = ?config(base_url, Config),
+     lists:foreach(fun(I) ->
+          URL = io_lib:format("~s/~b", [BaseURL, I]),
+          {ok, Resp} = httpc:request(delete, {URL, []}, [], []),
+          {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
+          ?assertEqual(404, Code),
+          ?assertEqual([], Body)
+     end, lists:seq(21, 30)).
+
 rest_get_empty_list(Config) ->
      BaseURL = ?config(base_url, Config),
-     {ok, Resp} = httpc:request(BaseURL),
+     URL = io_lib:format("~s/_keys", [BaseURL]),
+     {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
      ?assertEqual([], jiffy:decode(Body)).

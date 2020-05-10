@@ -7,7 +7,7 @@
 -type value() :: binary().
 
 %% public API
--export([list/0, get/1, set/2, delete/1]).
+-export([list/0, get/1, member/1, set/2, delete/1]).
 
 %% application callbacks
 -export([start/2, stop/1]).
@@ -29,6 +29,10 @@ list() ->
 get(Key) ->
     gen_server:call(?STORE, {get, Key}).
 
+-spec member(key()) -> boolean().
+member(Key) ->
+    gen_server:call(?STORE, {member, Key}).
+
 -spec set(key(), value()) -> ok | {error, term()}.
 set(Key, Value) ->
     gen_server:call(?STORE, {set, Key, Value}).
@@ -42,7 +46,7 @@ delete(Key) ->
 
 start(_Type, _StartArgs) ->
     Dispatch = cowboy_router:compile([
-        {'_', [{"/[:key]", seppen_rest, []}]}
+        {'_', [{"/:key", seppen_rest, []}]}
     ]),
     TransportOpts = [{port, 21285}],
     ProtocolOpts = #{

@@ -29,6 +29,9 @@ handle_call({delete, Key}, _, #{tid := Tid} = Ctx) ->
     Match = {'==', '$1', Key},
     1 = ets:select_delete(Tid, [{Head, [Match], [true]}]),
     {reply, ok, Ctx};
+handle_call({member, Key}, _, #{tid := Tid} = Ctx) ->
+    IsMemeber = ets:member(Tid, Key),
+    {reply, IsMemeber, Ctx};
 handle_call({get, Key}, _, #{tid := Tid} = Ctx) ->
     Reply = case ets:lookup(Tid, Key) of
         [#kv{value = Value}] -> {ok, Value};

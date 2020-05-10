@@ -2,9 +2,10 @@
 
 -export([
     init/2,
-    content_types_accepted/2,
     allowed_methods/2,
-    content_types_provided/2
+    content_types_accepted/2,
+    content_types_provided/2,
+    resource_exists/2
 ]).
 
 -export([
@@ -17,6 +18,8 @@
 init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
+allowed_methods(#{path := <<"/_keys">>} = Req, Ctx) ->
+    {[<<"GET">>], Req, Ctx};
 allowed_methods(Req, Ctx) ->
     Allowed = [<<"GET">>, <<"PUT">>, <<"DELETE">>],
     {Allowed, Req, Ctx}.
@@ -29,29 +32,28 @@ content_types_accepted(Req, Ctx) ->
     Accepted = [{<<"application/json">>, set_resource}],
     {Accepted, Req, Ctx}.
 
-
-get_resource(Req, Ctx) ->
-    Body = case cowboy_req:binding(key, Req) of
-        undefined ->
-            jiffy:encode(seppen:list());
-        Key ->
-            {ok, Value} = seppen:get(Key),
-            Value
-    end,
-    {Body, Req, Ctx}.
-
-set_resource(#{path := <<"/">>} = Req0, Ctx) ->
-    Req = cowboy_req:reply(405, Req0),
+resource_exists(#{path := <<"/_keys">>} = Req, Ctx) ->
     {true, Req, Ctx};
+resource_exists(Req, Ctx) ->
+    Key = cowboy_req:binding(key, Req),
+    IsMember = seppen:member(Key),
+    {IsMember, Req, Ctx}.
+
+
+get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->
+    Body = jiffy:encode(seppen:list()),
+    {Body, Req, Ctx};
+get_resource(Req, Ctx) ->
+    Key = cowboy_req:binding(key, Req),
+    {ok, Value} = seppen:get(Key),
+    {Value, Req, Ctx}.
+
 set_resource(Req0, Ctx) ->
     Key = cowboy_req:binding(key, Req0),
     {ok, Value, Req} = cowboy_req:read_body(Req0),
     ok = seppen:set(Key, Value),
     {true, Req, Ctx}.
 
-delete_resource(#{path := <<"/">>} = Req0, Ctx) ->
-    Req = cowboy_req:reply(405, Req0),
-    {true, Req, Ctx};
 delete_resource(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
     ok = seppen:delete(Key),
