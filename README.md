@@ -79,8 +79,8 @@ paths:
       produces:
       - "application/json"
       responses:
-        201:
-          description: "created"
+        204:
+          description: "no content"
         500:
           description: "internal server error"
     delete:
