@@ -10,7 +10,10 @@
         kernel,
         stdlib,
         crypto,
-        sasl
+        sasl,
+        ranch,
+        cowlib,
+        cowboy
     ]},
     {mod, {seppen, []}}
 ]}.
