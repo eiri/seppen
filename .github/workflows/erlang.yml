@@ -1,4 +1,4 @@
-name: Erlang CI
+name: Compile & Common Test
 
 on:
   push:
@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: erlang:22.0.7
+      image: erlang:22.3.3
 
     steps:
     - uses: actions/checkout@v2
     - name: Compile
       run: rebar3 compile
-    - name: Common Tests
+    - name: Common Test
       run: rebar3 ct --readable true
