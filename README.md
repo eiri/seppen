@@ -1,5 +1,7 @@
 # Seppen (雪片)
-Simple distributed in-memory key-value store
+![common tests](https://github.com/eiri/seppen/workflows/common%20tests/badge.svg?branch=master&event=push)
+
+_Simple distributed in-memory key-value store_
 
 ## What is it
 
