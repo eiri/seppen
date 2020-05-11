@@ -2,6 +2,8 @@
 
 PROJECT := seppen
 
+COOKIE := legNe7mIRCiMEy5X
+
 .PHONY: all
 all: build
 
@@ -11,11 +13,11 @@ build:
 
 .PHONY: test
 test:
-	rebar3 ct
+	rebar3 ct --sname ct --setcookie $(COOKIE) --readable true
 
 .PHONY: run
 run:
-	rebar3 shell --apps=$(PROJECT) --sname seppen --setcookie legNe7mIRCiMEy5X
+	rebar3 shell --apps=$(PROJECT) --name seppen@$(shell hostname) --setcookie $(COOKIE)
 
 .PHONY: clean
 clean:
