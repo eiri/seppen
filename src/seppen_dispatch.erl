@@ -22,9 +22,7 @@ all_shards() ->
     Head = #shard{node = '$1', _ = '_'},
     ets:select(?MODULE, [{Head, [], ['$1']}]).
 
-shards(Key) when is_binary(Key) ->
-    <<N:8, _/binary>> = seppen_hash:hmac(Key),
-    % rpc:call('ct_master@127.0.0.1', ct, print, ["K ~p; H: ~p; N: ~p", [Key, H, N]]),
+shards(<<N:8, _/binary>>) ->
     shards(N);
 shards(N) when is_integer(N) ->
     Head = #shard{from = '$1', to = '$2', node = '$3', _ = '_'},
@@ -74,8 +72,8 @@ start_cowboy() ->
 connect_nodes() ->
     Hosts = case net_adm:host_file() of
         {error, _} ->
-            % {ok, Host} = inet:gethostname(),
-            ['127.0.0.1']; % , list_to_atom(Host)];
+            {ok, Host} = inet:gethostname(),
+            ['127.0.0.1', list_to_atom(Host)];
         Hs ->
             Hs
     end,
