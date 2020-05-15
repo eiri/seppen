@@ -29,12 +29,12 @@ handle_call({set, Key, Value}, _, Ctx) ->
         idx := Idx,
         mkey := MKey
     } = Ctx,
-    UID = crypto:mac(hmac, sha256, MKey, Value),
+    UID = seppen_hash:hmac(MKey, Value),
     Reply =  case ets:member(Tid, UID) of
         true ->
             {error, conflict};
         false ->
-            %% FIXME! actuall delete OldUID first
+            %% FIXME! actually delete OldUID first
             true = ets:insert(Idx, #kv{key = Key, value = UID}),
             true = ets:insert(Tid, #kv{key = UID, value = Value}),
             ok
@@ -48,22 +48,19 @@ handle_call({delete, Key}, _, #{tid := Tid, idx := Idx} = Ctx) ->
 handle_call({member, Key}, _, #{idx := Idx} = Ctx) ->
     IsMemeber = ets:member(Idx, Key),
     {reply, IsMemeber, Ctx};
-handle_call({uid, Key, Opts}, _, #{idx := Idx} = Ctx) ->
-    Reply = case ets:lookup(Idx, Key) of
-        [#kv{value = UID}] ->
-            case lists:member(as_hex, Opts) of
-                true -> to_hex(UID);
-                false -> UID
-            end;
-        [] ->
-            {error, not_found}
-    end,
-    {reply, Reply, Ctx};
 handle_call({get, Key}, _, #{tid := Tid, idx := Idx} = Ctx) ->
     Reply = case ets:lookup(Idx, Key) of
         [#kv{value = UID}] ->
             [#kv{value = Value}] = ets:lookup(Tid, UID),
             {ok, Value};
+        [] ->
+            {error, not_found}
+    end,
+    {reply, Reply, Ctx};
+handle_call({get_uid, Key}, _, #{idx := Idx} = Ctx) ->
+    Reply = case ets:lookup(Idx, Key) of
+        [#kv{value = UID}] ->
+            {ok, UID};
         [] ->
             {error, not_found}
     end,
@@ -77,7 +74,3 @@ handle_call(_, _, Ctx) ->
 
 handle_cast(_, Ctx) ->
     {stop, unknown_cast, Ctx}.
-
-
-to_hex(Bin) ->
-    [begin if N < 10 -> 48 + N; true -> 87 + N end end || <<N:4>> <= Bin].

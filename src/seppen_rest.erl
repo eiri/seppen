@@ -45,8 +45,8 @@ generate_etag(#{path := <<"/_keys">>} = Req, Ctx) ->
     {undefined, Req, Ctx};
 generate_etag(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
-    UID = seppen:uid(Key, [as_hex]),
-    ETag = iolist_to_binary([$", UID, $"]),
+    {ok, UID} = seppen:get_uid(Key),
+    ETag = iolist_to_binary([$", seppen_hash:to_hex(UID), $"]),
     {ETag, Req, Ctx}.
 
 expires(Req, Ctx) ->

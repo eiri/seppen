@@ -18,7 +18,7 @@
      storage_get/1,
      storage_get_missing/1,
      storage_member/1,
-     storage_uid/1,
+     storage_get_uid/1,
      storage_list/1,
      storage_delete/1,
      storage_empty_list/1
@@ -66,7 +66,7 @@ groups() ->
           storage_get,
           storage_get_missing,
           storage_member,
-          storage_uid,
+          storage_get_uid,
           storage_list,
           storage_delete,
           storage_empty_list
@@ -123,22 +123,24 @@ storage_member(_Config) ->
           ?assertNot(seppen:member(Key))
      end, lists:seq(11, 20)).
 
-storage_uid(_Config) ->
+storage_get_uid(_Config) ->
      %% presented
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
-          ?assert(is_binary(seppen:uid(Key)))
+          ?assertMatch({ok, _}, seppen:get_uid(Key))
      end, lists:seq(1, 10)),
      %% missing
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
-          ?assertMatch({error, _}, seppen:uid(Key))
+          ?assertMatch({error, _}, seppen:get_uid(Key))
      end, lists:seq(11, 20)).
 
 storage_list(_Config) ->
-     Expect = [<<I:8>> || I <- lists:seq(1, 10)],
+     Expected = [<<I:8>> || I <- lists:seq(1, 10)],
+     MemberPred = fun(K) -> lists:member(K, Expected) end,
      Keys = seppen:list(),
-     ?assertEqual(Expect, Keys).
+     ?assertEqual(10, length(Keys)),
+     ?assert(lists:all(MemberPred, Keys)).
 
 storage_delete(_Config) ->
      lists:foreach(fun(I) ->
@@ -227,11 +229,14 @@ rest_get_missing(Config) ->
 rest_get_list(Config) ->
      BaseURL = ?config(base_url, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
-     Expected = [integer_to_binary(I) || I <- lists:seq(11, 20)],
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
-     ?assertEqual(Expected, jiffy:decode(Body)).
+     Expected = [integer_to_binary(I) || I <- lists:seq(11, 20)],
+     MemberPred = fun(K) -> lists:member(K, Expected) end,
+     Keys = jiffy:decode(Body),
+     ?assertEqual(10, length(Keys)),
+     ?assert(lists:all(MemberPred, Keys)).
 
 rest_delete(Config) ->
      BaseURL = ?config(base_url, Config),

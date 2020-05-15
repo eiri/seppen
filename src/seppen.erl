@@ -7,7 +7,7 @@
 -type value() :: binary().
 
 %% public API
--export([list/0, get/1, member/1, uid/1, uid/2, set/2, delete/1]).
+-export([list/0, get/1, get_uid/1, member/1, set/2, delete/1]).
 
 %% application callbacks
 -export([start/2, stop/1]).
@@ -22,49 +22,53 @@
 
 -spec list() -> [key()].
 list() ->
-    Keys = gen_server:call(?STORE, list),
-    lists:sort(Keys).
+    Nodes = seppen_dispatch:all_shards(),
+    {Replies, _} = gen_server:multi_call(Nodes, ?STORE, list),
+    lists:merge([R || {_Node, R} <- Replies]).
 
 -spec get(key()) -> {ok, value()} | {error, term()}.
 get(Key) ->
-    gen_server:call(?STORE, {get, Key}).
+    Nodes = seppen_dispatch:shards(Key),
+    Reply = gen_server:multi_call(Nodes, ?STORE, {get, Key}),
+    multi_reply(Reply).
+
+-spec get_uid(key()) -> {ok, binary()} | {error, term()}.
+get_uid(Key) ->
+    Nodes = seppen_dispatch:shards(Key),
+    Reply = gen_server:multi_call(Nodes, ?STORE, {get_uid, Key}),
+    multi_reply(Reply).
 
 -spec member(key()) -> boolean().
 member(Key) ->
-    gen_server:call(?STORE, {member, Key}).
-
-%% @equiv uid(Key, [])
-uid(Key) ->
-    uid(Key, []).
-
--spec uid(key(), [atom()]) -> binary() | {error, term()}.
-uid(Key, Opts) ->
-    gen_server:call(?STORE, {uid, Key, Opts}).
+    Nodes = seppen_dispatch:shards(Key),
+    Reply = gen_server:multi_call(Nodes, ?STORE, {member, Key}),
+    multi_reply(Reply).
 
 -spec set(key(), value()) -> ok | {error, term()}.
 set(Key, Value) ->
-    gen_server:call(?STORE, {set, Key, Value}).
+    Nodes = seppen_dispatch:shards(Key),
+    Reply = gen_server:multi_call(Nodes, ?STORE, {set, Key, Value}),
+    multi_reply(Reply).
 
 -spec delete(key()) -> ok | {error, term()}.
 delete(Key) ->
-    gen_server:call(?STORE, {delete, Key}).
+    Nodes = seppen_dispatch:shards(Key),
+    Reply = gen_server:multi_call(Nodes, ?STORE, {delete, Key}),
+    multi_reply(Reply).
+
+%% private
+
+multi_reply({Replies, _BadNodes}) ->
+    [Reply] = sets:to_list(sets:from_list([R || {_Node, R} <- Replies])),
+    Reply.
 
 
 %% application callbacks
 
 start(_Type, _StartArgs) ->
-    Dispatch = cowboy_router:compile([
-        {'_', [{"/:key", seppen_rest, []}]}
-    ]),
-    TransportOpts = [{port, 21285}],
-    ProtocolOpts = #{
-        env => #{dispatch => Dispatch}
-    },
-    {ok, _} = cowboy:start_clear(http, TransportOpts, ProtocolOpts),
     seppen:start_link().
 
 stop(_State) ->
-    cowboy:stop_listener(http),
     ok.
 
 
@@ -78,6 +82,10 @@ init([]) ->
         #{
             id => seppen_store,
             start => {seppen_store, start_link, []}
+        },
+        #{
+            id => seppen_dispatch,
+            start => {seppen_dispatch, start_link, []}
         }
     ],
     {ok, {#{}, Children}}.

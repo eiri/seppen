@@ -1,4 +1,4 @@
-name: common tests
+name: Erlang CI
 
 on:
   push:
@@ -8,16 +8,22 @@ on:
 
 jobs:
 
-  build:
+  build-and-tests:
 
     runs-on: ubuntu-latest
 
     container:
-      image: erlang:22.3.3
+      image: erlang:22.3.4
 
     steps:
     - uses: actions/checkout@v2
     - name: Compile
       run: rebar3 compile
-    - name: Common Test
-      run: rebar3 ct --readable true
+    - name: Unit tests
+      run: rebar3 eunit
+    - name: Start epmd
+      run: epmd -daemon
+    - name: System tests
+      run: rebar3 ct --name seppen-0-255@127.0.0.1 --setcookie YGzma2DLnRUUqJxR --suite seppen_SUITE
+    - name: Distributed tests
+      run: rebar3 ct --name ct_master@127.0.0.1 --setcookie YGzma2DLnRUUqJxR --suite seppen_dist_SUITE
