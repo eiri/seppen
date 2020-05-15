@@ -3,7 +3,8 @@
     {vsn, "1.0.0"},
     {modules, [
         seppen,
-        seppen_store
+        seppen_store,
+        seppen_dispatch
     ]},
     {registered, [seppen, seppend_sup, seppen_store]},
     {applications, [
