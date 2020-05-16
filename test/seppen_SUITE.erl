@@ -14,11 +14,10 @@
 
 -export([
      storage_set/1,
-     storage_set_conflict/1,
      storage_get/1,
      storage_get_missing/1,
      storage_member/1,
-     storage_get_uid/1,
+     storage_hmac/1,
      storage_list/1,
      storage_delete/1,
      storage_empty_list/1
@@ -29,6 +28,7 @@
      rest_put_conflict/1,
      rest_get/1,
      rest_get_if_none_match/1,
+     rest_put_if_match/1,
      rest_get_missing/1,
      rest_get_list/1,
      rest_delete/1,
@@ -47,7 +47,10 @@ end_per_suite(Config) ->
      ok.
 
 init_per_group(rest, Config) ->
-     [{base_url, "http://localhost:21285"} | Config];
+     Payloads = lists:map(fun(I) ->
+          {I, jiffy:encode(#{<<"number">> => I})}
+     end, lists:seq(11, 20)),
+     [{base_url, "http://localhost:21285"}, {payloads, Payloads} | Config];
 init_per_group(_Group, Config) ->
      Config.
 
@@ -62,11 +65,10 @@ all() ->
 groups() ->
      [{storage, [sequence], [
           storage_set,
-          storage_set_conflict,
           storage_get,
           storage_get_missing,
           storage_member,
-          storage_get_uid,
+          storage_hmac,
           storage_list,
           storage_delete,
           storage_empty_list
@@ -76,6 +78,7 @@ groups() ->
           rest_put_conflict,
           rest_get,
           rest_get_if_none_match,
+          rest_put_if_match,
           rest_get_missing,
           rest_get_list,
           rest_delete,
@@ -90,13 +93,6 @@ storage_set(_Config) ->
           Value = <<I:32>>,
           ?assertEqual(ok, seppen:set(Key, Value))
      end, lists:seq(1, 10)).
-
-storage_set_conflict(_Config) ->
-     lists:foreach(fun(I) ->
-          Key = <<I:8>>,
-          Value = <<(I-10):32>>,
-          ?assertEqual({error, conflict}, seppen:set(Key, Value))
-     end, lists:seq(11, 20)).
 
 storage_get(_Config) ->
      lists:foreach(fun(I) ->
@@ -123,16 +119,16 @@ storage_member(_Config) ->
           ?assertNot(seppen:member(Key))
      end, lists:seq(11, 20)).
 
-storage_get_uid(_Config) ->
+storage_hmac(_Config) ->
      %% presented
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
-          ?assertMatch({ok, _}, seppen:get_uid(Key))
+          ?assertMatch({ok, _}, seppen:hmac(Key))
      end, lists:seq(1, 10)),
      %% missing
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
-          ?assertMatch({error, _}, seppen:get_uid(Key))
+          ?assertMatch({error, _}, seppen:hmac(Key))
      end, lists:seq(11, 20)).
 
 storage_list(_Config) ->
@@ -154,40 +150,36 @@ storage_empty_list(_Config) ->
 
 rest_put(Config) ->
      BaseURL = ?config(base_url, Config),
-     Payloads = lists:map(fun(I) ->
+     Payloads = ?config(payloads, Config),
+     lists:foreach(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
-          Payload = jiffy:encode(#{<<"number">> => I}),
+          {I, Payload} = lists:keyfind(I, 1, Payloads),
           Req = {URL, [], "application/json", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(201, Code),
-          ?assertEqual([], Body),
-          {I, Payload}
-     end, lists:seq(11, 20)),
-     NewConfig = [{payloads, Payloads}],
-     {save_config, NewConfig}.
+          ?assertEqual([], Body)
+     end, lists:seq(11, 20)).
 
 rest_put_conflict(Config) ->
      BaseURL = ?config(base_url, Config),
-     {rest_put, OldConfig} = ?config(saved_config, Config),
-     Payloads = ?config(payloads, OldConfig),
+     Payloads = ?config(payloads, Config),
      lists:foreach(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
-          J = I - 10,
-          {J, Payload} = lists:keyfind(J, 1, Payloads),
-          Req = {URL, [], "application/json", Payload},
+          {I, Payload} = lists:keyfind(I, 1, Payloads),
+          ETag = [$", seppen_hash:to_hex(<<I:64>>), $"],
+          Headers = [{"if-match", ETag}],
+          % Headers = [{"x-old-hmac", seppen_hash:to_hex(<<I:32>>)}],
+          Req = {URL, Headers, "application/json", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
-          ?assertEqual(409, Code),
+          ?assertEqual(412, Code),
           ?assertEqual([], Body)
-     end, lists:seq(21, 30)),
-     NewConfig = [{payloads, Payloads}],
-     {save_config, NewConfig}.
+     end, lists:seq(11, 20)).
 
 rest_get(Config) ->
      BaseURL = ?config(base_url, Config),
-     {rest_put_conflict, OldConfig} = ?config(saved_config, Config),
-     Payloads = ?config(payloads, OldConfig),
+     Payloads = ?config(payloads, Config),
      ETags = lists:map(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
           {I, Expected} = lists:keyfind(I, 1, Payloads),
@@ -213,6 +205,24 @@ rest_get_if_none_match(Config) ->
           {ok, Resp} = httpc:request(get, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(304, Code),
+          ?assertEqual([], Body)
+     end, lists:seq(11, 20)),
+     NewConfig = [{etags, ETags}],
+     {save_config, NewConfig}.
+
+rest_put_if_match(Config) ->
+     BaseURL = ?config(base_url, Config),
+     {rest_get_if_none_match, OldConfig} = ?config(saved_config, Config),
+     ETags = ?config(etags, OldConfig),
+     lists:foreach(fun(I) ->
+          URL = io_lib:format("~s/~b", [BaseURL, I]),
+          Payload = jiffy:encode(#{<<"number">> => I+10}),
+          {I, ETag} = lists:keyfind(I, 1, ETags),
+          Headers = [{"if-match", ETag}],
+          Req = {URL, Headers, "application/json", Payload},
+          {ok, Resp} = httpc:request(put, Req, [], []),
+          {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
+          ?assertEqual(204, Code),
           ?assertEqual([], Body)
      end, lists:seq(11, 20)).
 

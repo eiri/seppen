@@ -62,14 +62,14 @@ test_put(Config) ->
           ?assertEqual(201, Code),
           ?assertEqual([], Body),
           %% ask nodes where they think it should be
-          Key = integer_to_binary(I),
-          {Maps, []} = rpc:multicall(Nodes, seppen_dispatch, shards, [Key]),
+          VHmac = seppen_hash:hmac(Payload),
+          {Maps, []} = rpc:multicall(Nodes, seppen_dispatch, shards, [VHmac]),
           [Map1, Map2] = Maps,
           ?assertEqual(Map1, Map2),
           %% confirm that keys are indeed there
           [StoreNode] = Map1,
           [MissNode] = Nodes -- Map1,
-          Cmd = [seppen_store, {member, Key}],
+          Cmd = [seppen_store, {member, VHmac}],
           OnNode = rpc:call(StoreNode, gen_server, call, Cmd),
           NotOnNode = rpc:call(MissNode, gen_server, call, Cmd),
           ?assert(OnNode),

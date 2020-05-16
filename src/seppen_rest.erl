@@ -45,13 +45,12 @@ generate_etag(#{path := <<"/_keys">>} = Req, Ctx) ->
     {undefined, Req, Ctx};
 generate_etag(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
-    {ok, UID} = seppen:get_uid(Key),
-    ETag = iolist_to_binary([$", seppen_hash:to_hex(UID), $"]),
+    {ok, Hmac} = seppen:hmac(Key),
+    ETag = iolist_to_binary([$", seppen_hash:to_hex(Hmac), $"]),
     {ETag, Req, Ctx}.
 
 expires(Req, Ctx) ->
     {undefined, Req, Ctx}.
-
 
 get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->
     Body = jiffy:encode(seppen:list()),
@@ -64,16 +63,8 @@ get_resource(Req, Ctx) ->
 set_resource(Req0, Ctx) ->
     Key = cowboy_req:binding(key, Req0),
     {ok, Value, Req1} = cowboy_req:read_body(Req0),
-    Req = case seppen:set(Key, Value) of
-        ok ->
-            Req1;
-        {error, conflict} ->
-            %% FIXME! ok, the correct way to handle this is
-            %% 1. get UID for payload and check if it's in storage in resource_exists
-            %% 2. add method is_conflict, that always returns true
-            cowboy_req:reply(409, Req1)
-    end,
-    {true, Req, Ctx}.
+    ok = seppen:set(Key, Value),
+    {true, Req1, Ctx}.
 
 delete_resource(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),

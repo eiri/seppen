@@ -23,7 +23,7 @@ Storage is gen_server owning a private ets `set` table. Entries stored indexed b
 
 #### Placement
 
-Sharding done with consistent hasing where each erlang node holds a shard range. The placement decided by first byte of key's hmac, so there might be max 256 shards. Ranges defined explicitly by nodes names provided in format `{name}-{range beginning inclusive}-{range ending inclusive}@hostname`. If beginning of the range large than ending, the node will hold two ranges flipped over 0.
+Sharding done with consistent hasing where each erlang node holds a shard range. The placement decided by first byte of value's hmac, so there might be max 256 shards. Ranges defined explicitly by nodes names provided in format `{name}-{range beginning inclusive}-{range ending inclusive}@hostname`. If beginning of the range large than ending, the node will hold two ranges flipped over 0.
 
 #### Configuration examples
 
