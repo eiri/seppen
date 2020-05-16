@@ -7,7 +7,7 @@
 -type value() :: binary().
 
 %% public API
--export([list/0, get/1, get_uid/1, member/1, set/2, delete/1]).
+-export([set/2, get/1, hmac/1, member/1, delete/1, list/0]).
 
 %% application callbacks
 -export([start/2, stop/1]).
@@ -15,52 +15,65 @@
 %% supervisor callbacks
 -export([start_link/0, init/1]).
 
+-define(INDEX, seppen_index).
 -define(STORE, seppen_store).
 
 
 %% Public API
 
--spec list() -> [key()].
-list() ->
-    Nodes = seppen_dispatch:all_shards(),
-    {Replies, _} = gen_server:multi_call(Nodes, ?STORE, list),
-    lists:merge([R || {_Node, R} <- Replies]).
+-spec set(key(), value()) -> ok | {error, term()}.
+set(Key, Value) ->
+    case gen_server:call(?INDEX, {get, Key}) of
+        {ok, OldVHmac} ->
+            %% FIXME! check that none other keys point to this before deleting
+            OldNodes = seppen_dispatch:shards(OldVHmac),
+            abcast = gen_server:abcast(OldNodes, ?STORE, {delete, OldVHmac});
+        {error, not_found} ->
+            ok
+    end,
+    VHmac = seppen_hash:hmac(Value),
+    Nodes = seppen_dispatch:shards(VHmac),
+    AllNodes = seppen_dispatch:all_shards(),
+    abcast = gen_server:abcast(Nodes, ?STORE, {set, VHmac, Value}),
+    abcast = gen_server:abcast(AllNodes, ?INDEX, {set, Key, VHmac}),
+    ok.
 
 -spec get(key()) -> {ok, value()} | {error, term()}.
 get(Key) ->
-    Nodes = seppen_dispatch:shards(Key),
-    Reply = gen_server:multi_call(Nodes, ?STORE, {get, Key}),
-    multi_reply(Reply).
+    case gen_server:call(?INDEX, {get, Key}) of
+        {ok, VHmac} ->
+            Nodes = seppen_dispatch:shards(VHmac),
+            {Replies, []} = gen_server:multi_call(Nodes, ?STORE, {get, VHmac}),
+            {_, Reply} = hd(Replies),
+            Reply;
+        Error ->
+            Error
+    end.
 
--spec get_uid(key()) -> {ok, binary()} | {error, term()}.
-get_uid(Key) ->
-    Nodes = seppen_dispatch:shards(Key),
-    Reply = gen_server:multi_call(Nodes, ?STORE, {get_uid, Key}),
-    multi_reply(Reply).
+-spec hmac(key()) -> {ok, binary()} | {error, term()}.
+hmac(Key) ->
+    gen_server:call(?INDEX, {get, Key}).
 
 -spec member(key()) -> boolean().
 member(Key) ->
-    Nodes = seppen_dispatch:shards(Key),
-    Reply = gen_server:multi_call(Nodes, ?STORE, {member, Key}),
-    multi_reply(Reply).
-
--spec set(key(), value()) -> ok | {error, term()}.
-set(Key, Value) ->
-    Nodes = seppen_dispatch:shards(Key),
-    Reply = gen_server:multi_call(Nodes, ?STORE, {set, Key, Value}),
-    multi_reply(Reply).
+    gen_server:call(?INDEX, {member, Key}).
 
 -spec delete(key()) -> ok | {error, term()}.
 delete(Key) ->
-    Nodes = seppen_dispatch:shards(Key),
-    Reply = gen_server:multi_call(Nodes, ?STORE, {delete, Key}),
-    multi_reply(Reply).
+    case gen_server:call(?INDEX, {get, Key}) of
+        {ok, OldVHmac} ->
+            OldNodes = seppen_dispatch:shards(OldVHmac),
+            abcast = gen_server:abcast(OldNodes, ?STORE, {delete, OldVHmac}),
+            AllNodes = seppen_dispatch:all_shards(),
+            abcast = gen_server:abcast(AllNodes, ?INDEX, {delete, Key}),
+            ok;
+        Error ->
+            Error
+    end.
 
-%% private
-
-multi_reply({Replies, _BadNodes}) ->
-    [Reply] = sets:to_list(sets:from_list([R || {_Node, R} <- Replies])),
-    Reply.
+-spec list() -> [key()].
+list() ->
+    gen_server:call(?INDEX, list).
 
 
 %% application callbacks
@@ -81,7 +94,11 @@ init([]) ->
     Children = [
         #{
             id => seppen_store,
-            start => {seppen_store, start_link, []}
+            start => {seppen_store, start_link, [?STORE]}
+        },
+        #{
+            id => seppen_index,
+            start => {seppen_store, start_link, [?INDEX]}
         },
         #{
             id => seppen_dispatch,
