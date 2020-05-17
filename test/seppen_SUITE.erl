@@ -8,19 +8,22 @@
      end_per_suite/1,
      init_per_group/2,
      end_per_group/2,
+     init_per_testcase/2,
+     end_per_testcase/2,
      all/0,
      groups/0
 ]).
 
 -export([
-     storage_set/1,
-     storage_get/1,
-     storage_get_missing/1,
-     storage_member/1,
-     storage_hmac/1,
-     storage_list/1,
-     storage_delete/1,
-     storage_empty_list/1
+     store_set/1,
+     store_get/1,
+     store_get_missing/1,
+     store_member/1,
+     store_hmac/1,
+     store_keys/1,
+     store_delete/1,
+     store_empty_keys/1,
+     store_keys_1/1
 ]).
 
 -export([
@@ -30,10 +33,10 @@
      rest_get_if_none_match/1,
      rest_put_if_match/1,
      rest_get_missing/1,
-     rest_get_list/1,
+     rest_get_keys/1,
      rest_delete/1,
      rest_delete_missing/1,
-     rest_get_empty_list/1
+     rest_get_empty_keys/1
 ]).
 
 
@@ -56,22 +59,49 @@ init_per_group(_Group, Config) ->
 
 end_per_group(rest, Config) ->
      {save_config, Config};
-end_per_group(_Group, Config) ->
+end_per_group(_Group, _Config) ->
+     ok.
+
+init_per_testcase(store_keys_1, Config) ->
+     Key1 = <<1:8>>,
+     Key2 = <<2:8>>,
+     Key3 = <<3:8>>,
+     Value = crypto:strong_rand_bytes(32),
+     Value2 = crypto:strong_rand_bytes(32),
+     ok = seppen:set(Key1, Value),
+     ok = seppen:set(Key2, Value2),
+     ok = seppen:set(Key3, Value),
+     {ok, VHmac1} = seppen:hmac(Key1),
+     {ok, VHmac2} = seppen:hmac(Key2),
+     {ok, VHmac3} = seppen:hmac(Key3),
+     ?assertEqual(VHmac3, VHmac1),
+     ?assertNotEqual(VHmac2, VHmac1),
+     Keys = [Key1, Key2, Key3],
+     [{vhmac, VHmac1}, {keys, Keys} | Config];
+init_per_testcase(_, Config) ->
      Config.
 
+end_per_testcase(store_keys_1, Config) ->
+     Keys = ?config(keys, Config),
+     [ok = seppen:delete(Key) || Key <- Keys];
+end_per_testcase(_, _Config) ->
+     ok.
+
+
 all() ->
-     [{group, storage}, {group, rest}].
+     [{group, store}, {group, rest}].
 
 groups() ->
-     [{storage, [sequence], [
-          storage_set,
-          storage_get,
-          storage_get_missing,
-          storage_member,
-          storage_hmac,
-          storage_list,
-          storage_delete,
-          storage_empty_list
+     [{store, [sequence], [
+          store_set,
+          store_get,
+          store_get_missing,
+          store_member,
+          store_hmac,
+          store_keys,
+          store_delete,
+          store_empty_keys,
+          store_keys_1
      ]},
      {rest, [sequence], [
           rest_put,
@@ -80,34 +110,34 @@ groups() ->
           rest_get_if_none_match,
           rest_put_if_match,
           rest_get_missing,
-          rest_get_list,
+          rest_get_keys,
           rest_delete,
           rest_delete_missing,
-          rest_get_empty_list
+          rest_get_empty_keys
      ]}].
 
 
-storage_set(_Config) ->
+store_set(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           Value = <<I:32>>,
           ?assertEqual(ok, seppen:set(Key, Value))
      end, lists:seq(1, 10)).
 
-storage_get(_Config) ->
+store_get(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           {ok, Value} = seppen:get(Key),
           ?assertEqual(<<I:32>>, Value)
      end, lists:seq(1, 10)).
 
-storage_get_missing(_Config) ->
+store_get_missing(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           ?assertEqual({error, not_found}, seppen:get(Key))
      end, lists:seq(11, 20)).
 
-storage_member(_Config) ->
+store_member(_Config) ->
      %% presented
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
@@ -119,7 +149,7 @@ storage_member(_Config) ->
           ?assertNot(seppen:member(Key))
      end, lists:seq(11, 20)).
 
-storage_hmac(_Config) ->
+store_hmac(_Config) ->
      %% presented
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
@@ -131,21 +161,37 @@ storage_hmac(_Config) ->
           ?assertMatch({error, _}, seppen:hmac(Key))
      end, lists:seq(11, 20)).
 
-storage_list(_Config) ->
+store_keys(_Config) ->
      Expected = [<<I:8>> || I <- lists:seq(1, 10)],
      MemberPred = fun(K) -> lists:member(K, Expected) end,
-     Keys = seppen:list(),
+     Keys = seppen:keys(),
      ?assertEqual(10, length(Keys)),
      ?assert(lists:all(MemberPred, Keys)).
 
-storage_delete(_Config) ->
+store_delete(_Config) ->
      lists:foreach(fun(I) ->
           Key = <<I:8>>,
           ?assertEqual(ok, seppen:delete(Key))
      end, lists:seq(1, 10)).
 
-storage_empty_list(_Config) ->
-     ?assertEqual([], seppen:list()).
+store_empty_keys(_Config) ->
+     ?assertEqual([], seppen:keys()).
+
+store_keys_1(Config) ->
+     VHmac = ?config(vhmac, Config),
+     [Key1, _Key2, Key3] = ?config(keys, Config),
+     %%
+     Keys1 = seppen:keys(VHmac),
+     ?assertEqual(2, length(Keys1)),
+     ?assert(lists:member(Key1, Keys1)),
+     ?assert(lists:member(Key3, Keys1)),
+     %%
+     ok = seppen:set(Key1, crypto:strong_rand_bytes(32)),
+     Keys2 = seppen:keys(VHmac),
+     ?assertEqual([Key3], Keys2),
+     %%
+     ok = seppen:set(Key3, crypto:strong_rand_bytes(32)),
+     ?assertEqual([], seppen:keys(VHmac)).
 
 
 rest_put(Config) ->
@@ -169,7 +215,6 @@ rest_put_conflict(Config) ->
           {I, Payload} = lists:keyfind(I, 1, Payloads),
           ETag = [$", seppen_hash:to_hex(<<I:64>>), $"],
           Headers = [{"if-match", ETag}],
-          % Headers = [{"x-old-hmac", seppen_hash:to_hex(<<I:32>>)}],
           Req = {URL, Headers, "application/json", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
@@ -236,7 +281,7 @@ rest_get_missing(Config) ->
           ?assertEqual([], Body)
      end, lists:seq(21, 30)).
 
-rest_get_list(Config) ->
+rest_get_keys(Config) ->
      BaseURL = ?config(base_url, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      {ok, Resp} = httpc:request(URL),
@@ -268,7 +313,7 @@ rest_delete_missing(Config) ->
           ?assertEqual([], Body)
      end, lists:seq(21, 30)).
 
-rest_get_empty_list(Config) ->
+rest_get_empty_keys(Config) ->
      BaseURL = ?config(base_url, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      {ok, Resp} = httpc:request(URL),

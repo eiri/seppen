@@ -7,7 +7,7 @@
 -type value() :: binary().
 
 %% public API
--export([set/2, get/1, hmac/1, member/1, delete/1, list/0]).
+-export([set/2, get/1, hmac/1, member/1, delete/1, keys/0, keys/1]).
 
 %% application callbacks
 -export([start/2, stop/1]).
@@ -23,19 +23,17 @@
 
 -spec set(key(), value()) -> ok | {error, term()}.
 set(Key, Value) ->
-    case gen_server:call(?INDEX, {get, Key}) of
-        {ok, OldVHmac} ->
-            %% FIXME! check that none other keys point to this before deleting
-            OldNodes = seppen_dispatch:shards(OldVHmac),
-            abcast = gen_server:abcast(OldNodes, ?STORE, {delete, OldVHmac});
-        {error, not_found} ->
+    maybe_delete_old_hmac(Key),
+    VHmac = seppen_hash:hmac(Value),
+    case keys(VHmac) of
+        [] ->
+            Nodes = seppen_dispatch:shards(VHmac),
+            gen_server:abcast(Nodes, ?STORE, {set, VHmac, Value});
+        _ ->
             ok
     end,
-    VHmac = seppen_hash:hmac(Value),
-    Nodes = seppen_dispatch:shards(VHmac),
     AllNodes = seppen_dispatch:all_shards(),
-    abcast = gen_server:abcast(Nodes, ?STORE, {set, VHmac, Value}),
-    abcast = gen_server:abcast(AllNodes, ?INDEX, {set, Key, VHmac}),
+    gen_server:abcast(AllNodes, ?INDEX, {set, Key, VHmac}),
     ok.
 
 -spec get(key()) -> {ok, value()} | {error, term()}.
@@ -44,7 +42,7 @@ get(Key) ->
         {ok, VHmac} ->
             Nodes = seppen_dispatch:shards(VHmac),
             {Replies, []} = gen_server:multi_call(Nodes, ?STORE, {get, VHmac}),
-            {_, Reply} = hd(Replies),
+            [Reply] = sets:to_list(sets:from_list([R || {_, R} <- Replies])),
             Reply;
         Error ->
             Error
@@ -60,20 +58,40 @@ member(Key) ->
 
 -spec delete(key()) -> ok | {error, term()}.
 delete(Key) ->
-    case gen_server:call(?INDEX, {get, Key}) of
-        {ok, OldVHmac} ->
-            OldNodes = seppen_dispatch:shards(OldVHmac),
-            abcast = gen_server:abcast(OldNodes, ?STORE, {delete, OldVHmac}),
+    case maybe_delete_old_hmac(Key) of
+        ok ->
             AllNodes = seppen_dispatch:all_shards(),
-            abcast = gen_server:abcast(AllNodes, ?INDEX, {delete, Key}),
+            gen_server:abcast(AllNodes, ?INDEX, {delete, Key}),
             ok;
         Error ->
             Error
     end.
 
--spec list() -> [key()].
-list() ->
-    gen_server:call(?INDEX, list).
+-spec keys() -> [key()].
+keys() ->
+    gen_server:call(?INDEX, keys).
+
+-spec keys(Value :: value()) -> [key()].
+keys(Value) ->
+    gen_server:call(?INDEX, {keys, Value}).
+
+
+%% priv
+
+maybe_delete_old_hmac(Key) ->
+    case gen_server:call(?INDEX, {get, Key}) of
+        {ok, OldVHmac} ->
+            case keys(OldVHmac) of
+                [Key] ->
+                    OldNodes = seppen_dispatch:shards(OldVHmac),
+                    gen_server:abcast(OldNodes, ?STORE, {delete, OldVHmac}),
+                    ok;
+                _ ->
+                    ok
+            end;
+        Error ->
+            Error
+    end.
 
 
 %% application callbacks
