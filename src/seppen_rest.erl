@@ -16,8 +16,7 @@
     content_types_accepted/2,
     content_types_provided/2,
     resource_exists/2,
-    generate_etag/2,
-    expires/2
+    generate_etag/2
 ]).
 
 -export([
@@ -88,8 +87,6 @@ generate_etag(Req, Ctx) ->
     ETag = iolist_to_binary([$", seppen_hash:to_hex(Hmac), $"]),
     {ETag, Req, Ctx}.
 
-expires(Req, Ctx) ->
-    {undefined, Req, Ctx}.
 
 get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->
     Body = jiffy:encode(seppen:list()),
