@@ -4,6 +4,8 @@
 
 -record(shard, {node, name, from, to}).
 
+-define(REFRESH_TIME, timer:minutes(1)).
+
 
 start_link() ->
     proc_lib:start_link(?MODULE, init, [self()]).
@@ -24,14 +26,16 @@ init(Parent) ->
     register(?MODULE, self()),
     ets:new(?MODULE, [bag, named_table, protected,
         {read_concurrency, true}, {keypos, #shard.node}]),
-    Nodes = connect_nodes(),
-    build_map(Nodes),
-    %% FIXME! start timer to periodically rebuild map
+    {ok, _} = timer:send_after(0, build_map),
     proc_lib:init_ack(Parent, {ok, self()}),
     loop(Parent).
 
 loop(Parent) ->
     receive
+        build_map ->
+            build_map(),
+            {ok, _} = timer:send_after(?REFRESH_TIME, build_map),
+            loop(Parent);
         {nodedown, Node} ->
             ets:delete(?MODULE, Node),
             loop(Parent);
@@ -40,17 +44,25 @@ loop(Parent) ->
     end.
 
 
-connect_nodes() ->
-    Hosts = case net_adm:host_file() of
-        {error, _} ->
-            {ok, Host} = inet:gethostname(),
-            ['127.0.0.1', list_to_atom(Host)];
-        Hs ->
-            Hs
-    end,
-    net_adm:world_list(Hosts).
+hosts() ->
+    case persistent_term:get(seppen_hosts, undefined) of
+        undefined ->
+            Hosts = hosts(net_adm:host_file()),
+            persistent_term:put(seppen_hosts, Hosts),
+            Hosts;
+        Hosts ->
+            Hosts
+    end.
 
-build_map(Nodes) ->
+hosts({error, _}) ->
+    {ok, Host} = inet:gethostname(),
+    ['127.0.0.1', list_to_atom(Host)];
+hosts(FromHostFile) ->
+    FromHostFile.
+
+build_map() ->
+    Hosts = hosts(),
+    Nodes = net_adm:world_list(Hosts),
     lists:foreach(fun(Node) ->
         Ranges = get_ranges(Node),
         ets:insert(?MODULE, Ranges),
