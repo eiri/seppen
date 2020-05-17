@@ -89,7 +89,7 @@ generate_etag(Req, Ctx) ->
 
 
 get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->
-    Body = jiffy:encode(seppen:list()),
+    Body = jiffy:encode(seppen:keys()),
     {Body, Req, Ctx};
 get_resource(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),

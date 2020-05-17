@@ -13,9 +13,9 @@
      test_put/1,
      test_get/1,
      test_get_if_none_match/1,
-     test_get_list/1,
+     test_get_keys/1,
      test_delete/1,
-     test_get_empty_list/1
+     test_get_empty_keys/1
 ]).
 
 
@@ -44,9 +44,9 @@ all() ->
           test_put,
           test_get,
           test_get_if_none_match,
-          test_get_list,
+          test_get_keys,
           test_delete,
-          test_get_empty_list
+          test_get_empty_keys
      ].
 
 
@@ -117,7 +117,7 @@ test_get_if_none_match(Config) ->
           end, URLs)
      end, lists:seq(1, 10)).
 
-test_get_list(Config) ->
+test_get_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      Expected = [integer_to_binary(I) || I <- lists:seq(1, 10)],
@@ -146,7 +146,7 @@ test_delete(Config) ->
           ?assertEqual({[false, false], []}, Reply)
      end, lists:seq(1, 10)).
 
-test_get_empty_list(Config) ->
+test_get_empty_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      {ok, Resp} = httpc:request(URL),

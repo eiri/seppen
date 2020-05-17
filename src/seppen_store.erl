@@ -31,9 +31,14 @@ handle_call({get, Key}, _, #{tid := Tid} = Ctx) ->
 handle_call({member, Key}, _, #{tid := Tid} = Ctx) ->
     IsMemeber = ets:member(Tid, Key),
     {reply, IsMemeber, Ctx};
-handle_call(list, _, #{tid := Tid} = Ctx) ->
+handle_call(keys, _, #{tid := Tid} = Ctx) ->
     Head = #kv{key = '$1', _ = '_'},
     Keys = ets:select(Tid, [{Head, [], ['$1']}]),
+    {reply, Keys, Ctx};
+handle_call({keys, Value}, _, #{tid := Tid} = Ctx) ->
+    Head = #kv{key = '$1', value = '$2'},
+    Guards = [{'==', '$2', Value}],
+    Keys = ets:select(Tid, [{Head, Guards, ['$1']}]),
     {reply, Keys, Ctx};
 handle_call(_, _, Ctx) ->
     {stop, unknown_call, Ctx}.
