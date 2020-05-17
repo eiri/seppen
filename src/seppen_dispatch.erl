@@ -64,9 +64,14 @@ build_map() ->
     Hosts = hosts(),
     Nodes = net_adm:world_list(Hosts),
     lists:foreach(fun(Node) ->
-        Ranges = get_ranges(Node),
-        ets:insert(?MODULE, Ranges),
-        erlang:monitor_node(Node, true)
+        case ets:member(?MODULE, Node) of
+            false ->
+                Ranges = get_ranges(Node),
+                ets:insert(?MODULE, Ranges),
+                erlang:monitor_node(Node, true);
+            true ->
+                ok
+        end
     end, Nodes).
 
 get_ranges(Node) ->
