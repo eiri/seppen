@@ -103,6 +103,11 @@ init([]) ->
         #{
             id => seppen_dispatch,
             start => {seppen_dispatch, start_link, []}
+        },
+        #{
+            id => seppen_rest,
+            start => {seppen_rest, start_link, []}
         }
+
     ],
     {ok, {#{}, Children}}.

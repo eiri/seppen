@@ -1,22 +1,12 @@
 -module(seppen_dispatch).
 
--behaviour(gen_server).
-
--export([start_link/0, all_shards/0, shards/1]).
-
--export([
-    init/1,
-    terminate/2,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2
-]).
+-export([start_link/0, init/1, all_shards/0, shards/1]).
 
 -record(shard, {node, name, from, to}).
 
 
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    proc_lib:start_link(?MODULE, init, [self()]).
 
 all_shards() ->
     Head = #shard{node = '$1', _ = '_'},
@@ -30,44 +20,25 @@ shards(N) when is_integer(N) ->
     ets:select(?MODULE, [{Head, Guards, ['$3']}]).
 
 
-%% FIXME! this module doesn't need to be gen_server,
-%% just comply with proc_lib
-init([]) ->
-    process_flag(trap_exit, true),
+init(Parent) ->
+    register(?MODULE, self()),
     ets:new(?MODULE, [bag, named_table, protected,
         {read_concurrency, true}, {keypos, #shard.node}]),
     Nodes = connect_nodes(),
     build_map(Nodes),
-    start_cowboy(),
     %% FIXME! start timer to periodically rebuild map
-    {ok, #{}}.
+    proc_lib:init_ack(Parent, {ok, self()}),
+    loop(Parent).
 
-terminate(_, _Ctx) ->
-    cowboy:stop_listener(http).
+loop(Parent) ->
+    receive
+        {nodedown, Node} ->
+            ets:delete(?MODULE, Node),
+            loop(Parent);
+        {system, From, Request} ->
+            sys:handle_system_msg(Request, From, Parent, ?MODULE, [], [])
+    end.
 
-handle_call(_, _, Ctx) ->
-    {stop, unknown_call, Ctx}.
-
-handle_cast(_, Ctx) ->
-    {stop, unknown_cast, Ctx}.
-
-handle_info({nodedown, Node}, Ctx) ->
-    ets:delete(?MODULE, Node),
-    {noreply, Ctx};
-handle_info(_, Ctx) ->
-    {stop, unknown_info, Ctx}.
-
-
-start_cowboy() ->
-    Dispatch = cowboy_router:compile([
-        {'_', [{"/:key", seppen_rest, []}]}
-    ]),
-    Port = os:getenv("SEPPEN_PORT", "21285"),
-    TransportOpts = [{port, list_to_integer(Port)}],
-    ProtocolOpts = #{
-        env => #{dispatch => Dispatch}
-    },
-    {ok, _} = cowboy:start_clear(http, TransportOpts, ProtocolOpts).
 
 connect_nodes() ->
     Hosts = case net_adm:host_file() of
