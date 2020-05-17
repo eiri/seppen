@@ -1,5 +1,15 @@
 -module(seppen_rest).
 
+%% gen_server api & callbacks.
+%% cheating here, using gen_server funcs without declaring behaviour
+-export([
+    start_link/0,
+    init/1,
+    terminate/2,
+    handle_info/2
+]).
+
+%% cowboy_rest callback
 -export([
     init/2,
     allowed_methods/2,
@@ -16,6 +26,35 @@
     delete_resource/2
 ]).
 
+
+%% gen_server callbacks
+
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+init([]) ->
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/:key", seppen_rest, []}]}
+    ]),
+    Port = os:getenv("SEPPEN_PORT", "21285"),
+    TransportOpts = [{port, list_to_integer(Port)}],
+    ProtocolOpts = #{
+        env => #{dispatch => Dispatch}
+    },
+    {ok, Pid} = cowboy:start_clear(http, TransportOpts, ProtocolOpts),
+    process_flag(trap_exit, true),
+    monitor(process, Pid),
+    {ok, #{pid => Pid}}.
+
+terminate(_Reason, _Ctx) ->
+    cowboy:stop_listener(http),
+    ok.
+
+handle_info({'DOWN', _, process, Pid, Reason}, #{pid := Pid}) ->
+    {stop, {cowboy_down, Reason}, #{}}.
+
+
+%% cowboy_rest callbacks
 
 init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
