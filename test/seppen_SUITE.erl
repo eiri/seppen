@@ -57,8 +57,6 @@ init_per_group(rest, Config) ->
 init_per_group(_Group, Config) ->
      Config.
 
-end_per_group(rest, Config) ->
-     {save_config, Config};
 end_per_group(_Group, _Config) ->
      ok.
 

@@ -6,16 +6,24 @@
 -export([
      init_per_suite/1,
      end_per_suite/1,
-     all/0
+     init_per_group/2,
+     end_per_group/2,
+     init_per_testcase/2,
+     end_per_testcase/2,
+     all/0,
+     groups/0
 ]).
 
 -export([
-     test_put/1,
-     test_get/1,
-     test_get_if_none_match/1,
-     test_get_keys/1,
-     test_delete/1,
-     test_get_empty_keys/1
+     dispatch_all_nodes/1,
+     dispatch_nodedown/1,
+     dispatch_nodeup/1,
+     sharding_put/1,
+     sharding_get/1,
+     sharding_get_if_none_match/1,
+     sharding_get_keys/1,
+     sharding_delete/1,
+     sharding_get_empty_keys/1
 ]).
 
 
@@ -27,11 +35,11 @@ init_per_suite(Config) ->
                {erl_flags, "-pa ../../lib/*/ebin"},
                {env, [{"SEPPEN_PORT", Port}]}
           ])
-     end, lists:zip(Nodes, ["21285", "21286"])),
+     end, lists:zip(Nodes, ["21286", "21287"])),
 
      {_, []} = rpc:multicall(Nodes, application, ensure_all_started, [seppen]),
 
-     URLs = ["http://localhost:21285", "http://localhost:21286"],
+     URLs = ["http://localhost:21286", "http://localhost:21287"],
      [{nodes, Nodes}, {urls, URLs} | Config].
 
 end_per_suite(Config) ->
@@ -39,18 +47,79 @@ end_per_suite(Config) ->
      [ct_slave:stop(Node) || Node <- Nodes],
      ok.
 
+init_per_group(dispatch, Config) ->
+     {ok, Apps} = application:ensure_all_started(seppen),
+     [{apps, Apps} | Config];
+init_per_group(_, Config) ->
+     Config.
+
+end_per_group(dispatch, Config) ->
+     Apps = ?config(apps, Config),
+     [ok = application:stop(App) || App <- Apps];
+end_per_group(_, _Config) ->
+     ok.
+
+init_per_testcase(dispatch_nodedown, Config) ->
+     [_, Node2] = ?config(nodes, Config),
+     Result = ct_slave:stop(Node2),
+     ?assertEqual({ok, Node2}, Result),
+     Config;
+init_per_testcase(_, Config) ->
+     Config.
+
+end_per_testcase(dispatch_nodedown, Config) ->
+     [_, Node2] = ?config(nodes, Config),
+     LocalHost = list_to_atom(net_adm:localhost()),
+     Result = ct_slave:start(LocalHost, Node2, [
+          {erl_flags, "-pa ../../lib/*/ebin"},
+          {env, [{"SEPPEN_PORT", "21287"}]}
+     ]),
+     ?assertEqual({ok, Node2}, Result),
+     Result2 = rpc:call(Node2, application, ensure_all_started, [seppen]),
+     ?assertMatch({ok, _}, Result2),
+     ok;
+end_per_testcase(_, _Config) ->
+     ok.
+
+
 all() ->
-     [
-          test_put,
-          test_get,
-          test_get_if_none_match,
-          test_get_keys,
-          test_delete,
-          test_get_empty_keys
-     ].
+     [{group, dispatch}, {group, sharding}].
+
+groups() ->
+     [{dispatch, [sequence], [
+          dispatch_all_nodes,
+          dispatch_nodedown,
+          dispatch_nodeup
+     ]},
+     {sharding, [sequence], [
+          sharding_put,
+          sharding_get,
+          sharding_get_if_none_match,
+          sharding_get_keys,
+          sharding_delete,
+          sharding_get_empty_keys
+     ]}].
 
 
-test_put(Config) ->
+dispatch_all_nodes(Config) ->
+     [Node1, Node2] = Nodes = ?config(nodes, Config),
+     ?assertEqual([Node1], seppen_dispatch:shards(<<64:8, 0, 0, 0>>)),
+     ?assertEqual([Node2], seppen_dispatch:shards(<<192:8, 0, 0, 0>>)),
+     Shards = seppen_dispatch:all_shards(),
+     ?assertEqual(Nodes, lists:sort(Shards)).
+
+dispatch_nodedown(Config) ->
+     [Node1, _] = ?config(nodes, Config),
+     ?assertEqual([Node1], seppen_dispatch:shards(<<64:8, 0, 0, 0>>)),
+     %% because I don't have hand-off yet
+     ?assertEqual([], seppen_dispatch:shards(<<192:8, 0, 0, 0>>)),
+     ?assertEqual([Node1], seppen_dispatch:all_shards()).
+
+dispatch_nodeup(Config) ->
+     dispatch_all_nodes(Config).
+
+
+sharding_put(Config) ->
      Nodes = ?config(nodes, Config),
      [BaseURL, _] = ?config(urls, Config),
      Payloads = lists:map(fun(I) ->
@@ -79,9 +148,9 @@ test_put(Config) ->
      NewConfig = [{payloads, Payloads}],
      {save_config, NewConfig}.
 
-test_get(Config) ->
+sharding_get(Config) ->
      URLs = ?config(urls, Config),
-     {test_put, OldConfig} = ?config(saved_config, Config),
+     {sharding_put, OldConfig} = ?config(saved_config, Config),
      Payloads = ?config(payloads, OldConfig),
      ETags = lists:map(fun(I) ->
           [ETag1, ETag2] = lists:foldl(fun(URL0, Acc) ->
@@ -101,9 +170,9 @@ test_get(Config) ->
      NewConfig = [{etags, ETags}],
      {save_config, NewConfig}.
 
-test_get_if_none_match(Config) ->
+sharding_get_if_none_match(Config) ->
      URLs = ?config(urls, Config),
-     {test_get, OldConfig} = ?config(saved_config, Config),
+     {sharding_get, OldConfig} = ?config(saved_config, Config),
      ETags = ?config(etags, OldConfig),
      lists:foreach(fun(I) ->
           lists:foreach(fun(URL0) ->
@@ -117,7 +186,7 @@ test_get_if_none_match(Config) ->
           end, URLs)
      end, lists:seq(1, 10)).
 
-test_get_keys(Config) ->
+sharding_get_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      Expected = [integer_to_binary(I) || I <- lists:seq(1, 10)],
@@ -130,7 +199,7 @@ test_get_keys(Config) ->
      ?assertEqual(10, length(Keys)),
      ?assert(lists:all(MemberPred, Keys)).
 
-test_delete(Config) ->
+sharding_delete(Config) ->
      Nodes = ?config(nodes, Config),
      [BaseURL, _] = ?config(urls, Config),
      lists:foreach(fun(I) ->
@@ -146,7 +215,7 @@ test_delete(Config) ->
           ?assertEqual({[false, false], []}, Reply)
      end, lists:seq(1, 10)).
 
-test_get_empty_keys(Config) ->
+sharding_get_empty_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      URL = io_lib:format("~s/_keys", [BaseURL]),
      {ok, Resp} = httpc:request(URL),
