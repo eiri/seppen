@@ -138,9 +138,9 @@ sharding_put(Config) ->
           %% confirm that keys are indeed there
           [StoreNode] = Map1,
           [MissNode] = Nodes -- Map1,
-          Cmd = [seppen_store, {member, VHmac}],
-          OnNode = rpc:call(StoreNode, gen_server, call, Cmd),
-          NotOnNode = rpc:call(MissNode, gen_server, call, Cmd),
+          Args = [seppen_store, VHmac],
+          OnNode = rpc:call(StoreNode, seppen_store, member, Args),
+          NotOnNode = rpc:call(MissNode, seppen_store, member, Args),
           ?assert(OnNode),
           ?assertNot(NotOnNode),
           {I, Payload}
@@ -210,8 +210,8 @@ sharding_delete(Config) ->
           ?assertEqual([], Body),
           %% confirm that key gone on both nodes
           Key = integer_to_binary(I),
-          Cmd = [seppen_store, {member, Key}],
-          Reply = rpc:multicall(Nodes, gen_server, call, Cmd),
+          Args = [seppen_store, Key],
+          Reply = rpc:multicall(Nodes, seppen_store, member, Args),
           ?assertEqual({[false, false], []}, Reply)
      end, lists:seq(1, 10)).
 

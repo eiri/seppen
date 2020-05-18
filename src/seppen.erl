@@ -28,40 +28,44 @@ set(Key, Value) ->
     case keys(VHmac) of
         [] ->
             Nodes = seppen_dispatch:shards(VHmac),
-            gen_server:abcast(Nodes, ?STORE, {set, VHmac, Value});
+            gen_server:multi_call(Nodes, ?STORE, {set, VHmac, Value});
         _ ->
             ok
     end,
     AllNodes = seppen_dispatch:all_shards(),
-    gen_server:abcast(AllNodes, ?INDEX, {set, Key, VHmac}),
+    gen_server:multi_call(AllNodes, ?INDEX, {set, Key, VHmac}),
     ok.
 
 -spec get(key()) -> {ok, value()} | {error, term()}.
 get(Key) ->
-    case gen_server:call(?INDEX, {get, Key}) of
+    case hmac(Key) of
         {ok, VHmac} ->
             Nodes = seppen_dispatch:shards(VHmac),
-            {Replies, []} = gen_server:multi_call(Nodes, ?STORE, {get, VHmac}),
-            [Reply] = sets:to_list(sets:from_list([R || {_, R} <- Replies])),
-            Reply;
+            case rpc:multicall(Nodes, seppen_store, get, [?STORE, VHmac]) of
+                {Replies, []} ->
+                    [Reply] = sets:to_list(sets:from_list(Replies)),
+                    Reply;
+                {_, _BadNodes} ->
+                    {error, rpc_fail}
+            end;
         Error ->
             Error
     end.
 
 -spec hmac(key()) -> {ok, binary()} | {error, term()}.
 hmac(Key) ->
-    gen_server:call(?INDEX, {get, Key}).
+    seppen_store:get(?INDEX, Key).
 
 -spec member(key()) -> boolean().
 member(Key) ->
-    gen_server:call(?INDEX, {member, Key}).
+    seppen_store:member(?INDEX, Key).
 
 -spec delete(key()) -> ok | {error, term()}.
 delete(Key) ->
     case maybe_delete_old_hmac(Key) of
         ok ->
             AllNodes = seppen_dispatch:all_shards(),
-            gen_server:abcast(AllNodes, ?INDEX, {delete, Key}),
+            gen_server:multi_call(AllNodes, ?INDEX, {delete, Key}),
             ok;
         Error ->
             Error
@@ -69,17 +73,17 @@ delete(Key) ->
 
 -spec keys() -> [key()].
 keys() ->
-    gen_server:call(?INDEX, keys).
+    seppen_store:keys(?INDEX).
 
 -spec keys(Value :: value()) -> [key()].
 keys(Value) ->
-    gen_server:call(?INDEX, {keys, Value}).
+    seppen_store:keys(?INDEX, Value).
 
 
 %% priv
 
 maybe_delete_old_hmac(Key) ->
-    case gen_server:call(?INDEX, {get, Key}) of
+    case hmac(Key) of
         {ok, OldVHmac} ->
             case keys(OldVHmac) of
                 [Key] ->

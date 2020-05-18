@@ -21,7 +21,7 @@ eunit:
 
 .PHONY: ct
 ct:
-	rebar3 ct --name $(NODE) --setcookie $(COOKIE) --suite seppen_SUITE --readable true -v
+	rebar3 ct --name $(NODE) --setcookie $(COOKIE) --suite seppen_SUITE
 
 .PHONY: dist
 dist:
