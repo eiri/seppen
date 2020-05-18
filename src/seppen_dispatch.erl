@@ -26,6 +26,7 @@ init(Parent) ->
     register(?MODULE, self()),
     ets:new(?MODULE, [bag, named_table, protected,
         {read_concurrency, true}, {keypos, #shard.node}]),
+    net_kernel:monitor_nodes(true),
     {ok, _} = timer:send_after(0, build_map),
     proc_lib:init_ack(Parent, {ok, self()}),
     loop(Parent).
@@ -35,6 +36,10 @@ loop(Parent) ->
         build_map ->
             build_map(),
             {ok, _} = timer:send_after(?REFRESH_TIME, build_map),
+            loop(Parent);
+        {nodeup, Node} ->
+            Ranges = get_ranges(Node),
+            ets:insert(?MODULE, Ranges),
             loop(Parent);
         {nodedown, Node} ->
             ets:delete(?MODULE, Node),
@@ -67,8 +72,7 @@ build_map() ->
         case ets:member(?MODULE, Node) of
             false ->
                 Ranges = get_ranges(Node),
-                ets:insert(?MODULE, Ranges),
-                erlang:monitor_node(Node, true);
+                ets:insert(?MODULE, Ranges);
             true ->
                 ok
         end
