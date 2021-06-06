@@ -1,0 +1,22 @@
+PUT http://localhost:21285/alice HTTP/1.1
+Accept: application/json
+Content-Type: application/json
+
+{"name": "alice"}
+
+###
+
+GET http://localhost:21285/alice HTTP/1.1
+Accept: application/json
+Content-Type: application/json
+
+###
+
+DELETE http://localhost:21285/alice HTTP/1.1
+Accept: application/json
+Content-Type: application/json
+
+### 
+
+GET http://localhost:21285/_keys HTTP/1.1
+Accept: application/json

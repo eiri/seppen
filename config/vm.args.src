@@ -1,0 +1,2 @@
+-name ${SEPPEN_NODE_NAME:-seppen-0-255@127.0.0.1}
+-setcookie ${SEPPEN_COOKIE:-snowflake}

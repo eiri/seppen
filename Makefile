@@ -3,7 +3,7 @@
 PROJECT := seppen
 
 NODE := seppen-0-255@127.0.0.1
-COOKIE := legNe7mIRCiMEy5X
+COOKIE := snowflake
 
 .PHONY: all
 all: build test
@@ -13,7 +13,7 @@ build:
 	rebar3 compile
 
 .PHONY: test
-test: eunit ct
+test: eunit ct dist
 
 .PHONY: eunit
 eunit:
@@ -37,5 +37,19 @@ run:
 
 .PHONY: clean
 clean:
+	rm -rf $(CURDIR)/_build/default/rel
+	rm -rf $(CURDIR)/_build/default/lib/seppen
 	rm -rf $(CURDIR)/_build/test
 	rebar3 clean
+
+.PHONY: release
+release:
+	rebar3 release
+
+.PHONY: release-run
+release-run:
+	$(CURDIR)/_build/default/rel/seppen/bin/seppen foreground
+
+.PHONY: tar
+tar:
+	rebar3 tar
