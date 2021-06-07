@@ -6,7 +6,6 @@
 
 -define(REFRESH_TIME, timer:minutes(1)).
 
-
 start_link() ->
     proc_lib:start_link(?MODULE, init, [self()]).
 
@@ -21,11 +20,15 @@ shards(N) when is_integer(N) ->
     Guards = [{'=<', '$1', N}, {'>=', '$2', N}],
     ets:select(?MODULE, [{Head, Guards, ['$3']}]).
 
-
 init(Parent) ->
     register(?MODULE, self()),
-    ets:new(?MODULE, [bag, named_table, protected,
-        {read_concurrency, true}, {keypos, #shard.node}]),
+    ets:new(?MODULE, [
+        bag,
+        named_table,
+        protected,
+        {read_concurrency, true},
+        {keypos, #shard.node}
+    ]),
     net_kernel:monitor_nodes(true),
     {ok, _} = timer:send_after(0, build_map),
     proc_lib:init_ack(Parent, {ok, self()}),
@@ -48,7 +51,6 @@ loop(Parent) ->
             sys:handle_system_msg(Request, From, Parent, ?MODULE, [], [])
     end.
 
-
 hosts() ->
     case persistent_term:get(seppen_hosts, undefined) of
         undefined ->
@@ -68,15 +70,18 @@ hosts(FromHostFile) ->
 build_map() ->
     Hosts = hosts(),
     Nodes = net_adm:world_list(Hosts),
-    lists:foreach(fun(Node) ->
-        case ets:member(?MODULE, Node) of
-            false ->
-                Ranges = get_ranges(Node),
-                ets:insert(?MODULE, Ranges);
-            true ->
-                ok
-        end
-    end, Nodes).
+    lists:foreach(
+        fun(Node) ->
+            case ets:member(?MODULE, Node) of
+                false ->
+                    Ranges = get_ranges(Node),
+                    ets:insert(?MODULE, Ranges);
+                true ->
+                    ok
+            end
+        end,
+        Nodes
+    ).
 
 get_ranges(Node) ->
     case re:split(atom_to_list(Node), "[-@]", [{return, list}]) of
@@ -84,19 +89,19 @@ get_ranges(Node) ->
             From = list_to_integer(From0),
             To = list_to_integer(To0),
             case From > To of
-                true -> [
-                    #shard{node = Node, name = Name, from = 0, to = To},
-                    #shard{node = Node, name = Name, from = From, to = 255}
-                ];
-                false -> [
-                    #shard{node = Node, name = Name, from = From, to = To}
-                ]
+                true ->
+                    [
+                        #shard{node = Node, name = Name, from = 0, to = To},
+                        #shard{node = Node, name = Name, from = From, to = 255}
+                    ];
+                false ->
+                    [
+                        #shard{node = Node, name = Name, from = From, to = To}
+                    ]
             end;
         _ ->
             []
     end.
-
-
 
 -ifdef(TEST).
 
@@ -104,28 +109,21 @@ get_ranges(Node) ->
 
 shards_test_() ->
     {foreach,
-    fun() ->
-        ets:new(?MODULE, [bag, named_table, public, {keypos, #shard.node}])
-    end,
-    fun(_) ->
-        ets:delete(?MODULE)
-    end,
-    [
-        {"all shards",
-        fun test_all_shards/0},
-        {"all avail, 1 shard, 1 copy",
-        fun test_shards_1_1/0},
-        {"all avail, 1 shard, 3 copies",
-        fun test_shards_1_3/0},
-        {"all avail, 3 shard, 1 copy",
-        fun test_shards_3_1/0},
-        {"all avail, 3 shard, 2 copy",
-        fun test_shards_3_2/0},
-        {"1 missing, 3 shard, 1 copy",
-        fun test_shards_3_1_nodedown/0},
-        {"1 missing, 3 shard, 2 copy",
-        fun test_shards_3_2_nodedown/0}
-    ]}.
+        fun() ->
+            ets:new(?MODULE, [bag, named_table, public, {keypos, #shard.node}])
+        end,
+        fun(_) ->
+            ets:delete(?MODULE)
+        end,
+        [
+            {"all shards", fun test_all_shards/0},
+            {"all avail, 1 shard, 1 copy", fun test_shards_1_1/0},
+            {"all avail, 1 shard, 3 copies", fun test_shards_1_3/0},
+            {"all avail, 3 shard, 1 copy", fun test_shards_3_1/0},
+            {"all avail, 3 shard, 2 copy", fun test_shards_3_2/0},
+            {"1 missing, 3 shard, 1 copy", fun test_shards_3_1_nodedown/0},
+            {"1 missing, 3 shard, 2 copy", fun test_shards_3_2_nodedown/0}
+        ]}.
 
 test_all_shards() ->
     NodeA = 'a-0-255',
@@ -137,7 +135,7 @@ test_all_shards() ->
         get_ranges(NodeC)
     ]),
     ets:insert(?MODULE, Ranges),
-    ?assertEqual([NodeA, NodeB, NodeC], lists:sort( all_shards() )).
+    ?assertEqual([NodeA, NodeB, NodeC], lists:sort(all_shards())).
 
 test_shards_1_1() ->
     Node = 'a-0-255',
@@ -158,9 +156,9 @@ test_shards_1_3() ->
     ]),
     ets:insert(?MODULE, Ranges),
     %% all three shards
-    ?assertEqual([NodeA, NodeB, NodeC], lists:sort( shards(0) )),
-    ?assertEqual([NodeA, NodeB, NodeC], lists:sort( shards(127) )),
-    ?assertEqual([NodeA, NodeB, NodeC], lists:sort( shards(255) )).
+    ?assertEqual([NodeA, NodeB, NodeC], lists:sort(shards(0))),
+    ?assertEqual([NodeA, NodeB, NodeC], lists:sort(shards(127))),
+    ?assertEqual([NodeA, NodeB, NodeC], lists:sort(shards(255))).
 
 test_shards_3_1() ->
     NodeA = 'a-0-84',
@@ -196,17 +194,17 @@ test_shards_3_2() ->
     ]),
     ets:insert(?MODULE, Ranges),
     %% shards 1 - 3
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(0) )),
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(42) )),
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(84) )),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(0))),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(42))),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(84))),
     %% shards 1 - 2
-    ?assertEqual([NodeA, NodeB], lists:sort( shards(85) )),
-    ?assertEqual([NodeA, NodeB], lists:sort( shards(127) )),
-    ?assertEqual([NodeA, NodeB], lists:sort( shards(169) )),
+    ?assertEqual([NodeA, NodeB], lists:sort(shards(85))),
+    ?assertEqual([NodeA, NodeB], lists:sort(shards(127))),
+    ?assertEqual([NodeA, NodeB], lists:sort(shards(169))),
     %% shards 2 - 3
-    ?assertEqual([NodeB, NodeC], lists:sort( shards(170) )),
-    ?assertEqual([NodeB, NodeC], lists:sort( shards(212) )),
-    ?assertEqual([NodeB, NodeC], lists:sort( shards(255) )).
+    ?assertEqual([NodeB, NodeC], lists:sort(shards(170))),
+    ?assertEqual([NodeB, NodeC], lists:sort(shards(212))),
+    ?assertEqual([NodeB, NodeC], lists:sort(shards(255))).
 
 test_shards_3_1_nodedown() ->
     NodeA = 'a-0-84',
@@ -238,9 +236,9 @@ test_shards_3_2_nodedown() ->
     ]),
     ets:insert(?MODULE, Ranges),
     %% shards 1 - 3
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(0) )),
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(42) )),
-    ?assertEqual([NodeA, NodeC], lists:sort( shards(84) )),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(0))),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(42))),
+    ?assertEqual([NodeA, NodeC], lists:sort(shards(84))),
     %% shard 1
     ?assertEqual([NodeA], shards(85)),
     ?assertEqual([NodeA], shards(127)),
