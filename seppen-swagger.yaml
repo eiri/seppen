@@ -8,7 +8,7 @@ basePath: "/"
 schemes:
 - "http"
 paths:
-  /_keys:
+  /:
     get:
       summary: "Returns list of the keys"
       produces:

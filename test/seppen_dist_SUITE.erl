@@ -188,7 +188,7 @@ sharding_get_if_none_match(Config) ->
 
 sharding_get_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
-     URL = io_lib:format("~s/_keys", [BaseURL]),
+     URL = io_lib:format("~s/", [BaseURL]),
      Expected = [integer_to_binary(I) || I <- lists:seq(1, 10)],
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
@@ -217,7 +217,7 @@ sharding_delete(Config) ->
 
 sharding_get_empty_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
-     URL = io_lib:format("~s/_keys", [BaseURL]),
+     URL = io_lib:format("~s/", [BaseURL]),
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),

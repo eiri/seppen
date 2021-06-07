@@ -33,7 +33,10 @@ start_link() ->
 
 init([]) ->
     Dispatch = cowboy_router:compile([
-        {'_', [{"/:key", seppen_rest, []}]}
+        {'_', [
+            {"/", seppen_rest, []},
+            {"/:key", seppen_rest, []}
+        ]}
     ]),
     Port = os:getenv("SEPPEN_PORT", "21285"),
     TransportOpts = [{port, list_to_integer(Port)}],
@@ -58,7 +61,7 @@ handle_info({'DOWN', _, process, Pid, Reason}, #{pid := Pid}) ->
 init(Req, Opts) ->
     {cowboy_rest, Req, Opts}.
 
-allowed_methods(#{path := <<"/_keys">>} = Req, Ctx) ->
+allowed_methods(#{path := <<"/">>} = Req, Ctx) ->
     {[<<"GET">>], Req, Ctx};
 allowed_methods(Req, Ctx) ->
     Allowed = [<<"GET">>, <<"PUT">>, <<"DELETE">>],
@@ -72,14 +75,14 @@ content_types_accepted(Req, Ctx) ->
     Accepted = [{<<"application/json">>, set_resource}],
     {Accepted, Req, Ctx}.
 
-resource_exists(#{path := <<"/_keys">>} = Req, Ctx) ->
+resource_exists(#{path := <<"/">>} = Req, Ctx) ->
     {true, Req, Ctx};
 resource_exists(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
     IsMember = seppen:member(Key),
     {IsMember, Req, Ctx}.
 
-generate_etag(#{path := <<"/_keys">>} = Req, Ctx) ->
+generate_etag(#{path := <<"/">>} = Req, Ctx) ->
     {undefined, Req, Ctx};
 generate_etag(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
@@ -88,7 +91,7 @@ generate_etag(Req, Ctx) ->
     {ETag, Req, Ctx}.
 
 
-get_resource(#{path := <<"/_keys">>} = Req, Ctx) ->
+get_resource(#{path := <<"/">>} = Req, Ctx) ->
     Body = jiffy:encode(seppen:keys()),
     {Body, Req, Ctx};
 get_resource(Req, Ctx) ->
