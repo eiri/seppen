@@ -18,5 +18,5 @@ Content-Type: application/json
 
 ### 
 
-GET http://localhost:21285/_keys HTTP/1.1
+GET http://localhost:21285/ HTTP/1.1
 Accept: application/json

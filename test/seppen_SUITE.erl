@@ -281,7 +281,7 @@ rest_get_missing(Config) ->
 
 rest_get_keys(Config) ->
      BaseURL = ?config(base_url, Config),
-     URL = io_lib:format("~s/_keys", [BaseURL]),
+     URL = io_lib:format("~s/", [BaseURL]),
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
@@ -313,7 +313,7 @@ rest_delete_missing(Config) ->
 
 rest_get_empty_keys(Config) ->
      BaseURL = ?config(base_url, Config),
-     URL = io_lib:format("~s/_keys", [BaseURL]),
+     URL = io_lib:format("~s/", [BaseURL]),
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
