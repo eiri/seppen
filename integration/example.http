@@ -1,22 +1,32 @@
 PUT http://localhost:21285/alice HTTP/1.1
-Accept: application/json
-Content-Type: application/json
+Accept: */*
+Content-Type: application/octet-stream
 
 {"name": "alice"}
 
 ###
+PUT http://localhost:21285/rabbit HTTP/1.1
+Accept: */*
+Content-Type: application/octet-stream
 
-GET http://localhost:21285/alice HTTP/1.1
-Accept: application/json
-Content-Type: application/json
+name => white rabbit
 
 ###
+GET http://localhost:21285/alice HTTP/1.1
+Accept: */*
 
+###
+GET http://localhost:21285/rabbit HTTP/1.1
+Accept: */*
+
+###
 DELETE http://localhost:21285/alice HTTP/1.1
-Accept: application/json
-Content-Type: application/json
+Accept: */*
 
-### 
+###
+DELETE http://localhost:21285/rabbit HTTP/1.1
+Accept: */*
 
+###
 GET http://localhost:21285/ HTTP/1.1
-Accept: application/json
+Accept: */*

@@ -12,14 +12,13 @@ paths:
     get:
       summary: "Returns list of the keys"
       produces:
-      - "application/json"
+      - "application/octet-stream"
       responses:
         200:
           description: "ok"
           schema:
-            type: "array"
-            items:
-              type: "string"
+            type: "string"
+            format: "binary"
   /{key}:
     parameters:
     - name: "key"
@@ -35,12 +34,13 @@ paths:
         required: false
         type: "string"
       produces:
-      - "application/json"
+      - "application/octet-stream"
       responses:
         200:
           description: "ok"
           schema:
-            type: "object"
+            type: "string"
+            format: "binary"
         304:
           description: "not modified"
         404:
@@ -52,9 +52,10 @@ paths:
         name: "value"
         required: true
         schema:
-          type: "object"
+          type: "string"
+          format: "binary"
       produces:
-      - "application/json"
+      - "application/octet-stream"
       responses:
         201:
           description: "created"
@@ -65,7 +66,7 @@ paths:
     delete:
       summary: "Delete record for a given key"
       produces:
-      - "application/json"
+      - "application/octet-stream"
       responses:
         204:
           description: "no content"

@@ -124,8 +124,8 @@ sharding_put(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      Payloads = lists:map(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
-          Payload = jiffy:encode(#{<<"number">> => I}),
-          Req = {URL, [], "application/json", Payload},
+          Payload = <<"number => ", I>>,
+          Req = {URL, [], "application/octet-stream", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(201, Code),
@@ -189,13 +189,12 @@ sharding_get_if_none_match(Config) ->
 sharding_get_keys(Config) ->
      [BaseURL, _] = ?config(urls, Config),
      URL = io_lib:format("~s/", [BaseURL]),
-     Expected = [integer_to_binary(I) || I <- lists:seq(1, 10)],
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
-     Expected = [integer_to_binary(I) || I <- lists:seq(1, 10)],
+     Expected = [integer_to_list(I) || I <- lists:seq(1, 10)],
      MemberPred = fun(K) -> lists:member(K, Expected) end,
-     Keys = jiffy:decode(Body),
+     Keys = string:split(Body, "\n", all),
      ?assertEqual(10, length(Keys)),
      ?assert(lists:all(MemberPred, Keys)).
 
@@ -221,4 +220,4 @@ sharding_get_empty_keys(Config) ->
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
-     ?assertEqual([], jiffy:decode(Body)).
+     ?assertEqual("", Body).
