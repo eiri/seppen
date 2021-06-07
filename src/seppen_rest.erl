@@ -68,11 +68,11 @@ allowed_methods(Req, Ctx) ->
     {Allowed, Req, Ctx}.
 
 content_types_provided(Req, Ctx) ->
-    Provided = [{<<"application/json">>, get_resource}],
+    Provided = [{<<"application/octet-stream">>, get_resource}],
     {Provided, Req, Ctx}.
 
 content_types_accepted(Req, Ctx) ->
-    Accepted = [{<<"application/json">>, set_resource}],
+    Accepted = [{<<"application/octet-stream">>, set_resource}],
     {Accepted, Req, Ctx}.
 
 resource_exists(#{path := <<"/">>} = Req, Ctx) ->
@@ -90,9 +90,8 @@ generate_etag(Req, Ctx) ->
     ETag = iolist_to_binary([$", seppen_hash:to_hex(Hmac), $"]),
     {ETag, Req, Ctx}.
 
-
 get_resource(#{path := <<"/">>} = Req, Ctx) ->
-    Body = jiffy:encode(seppen:keys()),
+    Body = lists:join(<<"\n">>, seppen:keys()),
     {Body, Req, Ctx};
 get_resource(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),

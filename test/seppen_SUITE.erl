@@ -51,7 +51,7 @@ end_per_suite(Config) ->
 
 init_per_group(rest, Config) ->
      Payloads = lists:map(fun(I) ->
-          {I, jiffy:encode(#{<<"number">> => I})}
+          {I, <<"number => ", I>>}
      end, lists:seq(11, 20)),
      [{base_url, "http://localhost:21285"}, {payloads, Payloads} | Config];
 init_per_group(_Group, Config) ->
@@ -198,7 +198,7 @@ rest_put(Config) ->
      lists:foreach(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
           {I, Payload} = lists:keyfind(I, 1, Payloads),
-          Req = {URL, [], "application/json", Payload},
+          Req = {URL, [], "application/octet-stream", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(201, Code),
@@ -213,7 +213,7 @@ rest_put_conflict(Config) ->
           {I, Payload} = lists:keyfind(I, 1, Payloads),
           ETag = [$", seppen_hash:to_hex(<<I:64>>), $"],
           Headers = [{"if-match", ETag}],
-          Req = {URL, Headers, "application/json", Payload},
+          Req = {URL, Headers, "application/octet-stream", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(412, Code),
@@ -259,10 +259,10 @@ rest_put_if_match(Config) ->
      ETags = ?config(etags, OldConfig),
      lists:foreach(fun(I) ->
           URL = io_lib:format("~s/~b", [BaseURL, I]),
-          Payload = jiffy:encode(#{<<"number">> => I+10}),
+          Payload = <<"number => ", (I+10)>>,
           {I, ETag} = lists:keyfind(I, 1, ETags),
           Headers = [{"if-match", ETag}],
-          Req = {URL, Headers, "application/json", Payload},
+          Req = {URL, Headers, "application/octet-stream", Payload},
           {ok, Resp} = httpc:request(put, Req, [], []),
           {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
           ?assertEqual(204, Code),
@@ -285,9 +285,9 @@ rest_get_keys(Config) ->
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
-     Expected = [integer_to_binary(I) || I <- lists:seq(11, 20)],
+     Expected = [integer_to_list(I) || I <- lists:seq(11, 20)],
      MemberPred = fun(K) -> lists:member(K, Expected) end,
-     Keys = jiffy:decode(Body),
+     Keys = string:split(Body, "\n", all),
      ?assertEqual(10, length(Keys)),
      ?assert(lists:all(MemberPred, Keys)).
 
@@ -317,4 +317,4 @@ rest_get_empty_keys(Config) ->
      {ok, Resp} = httpc:request(URL),
      {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
      ?assertEqual(200, Code),
-     ?assertEqual([], jiffy:decode(Body)).
+     ?assertEqual("", Body).
