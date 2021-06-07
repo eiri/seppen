@@ -18,7 +18,6 @@
 -define(INDEX, seppen_index).
 -define(STORE, seppen_store).
 
-
 %% Public API
 
 -spec set(key(), value()) -> ok | {error, term()}.
@@ -79,7 +78,6 @@ keys() ->
 keys(Value) ->
     seppen_store:keys(?INDEX, Value).
 
-
 %% priv
 
 maybe_delete_old_hmac(Key) ->
@@ -97,7 +95,6 @@ maybe_delete_old_hmac(Key) ->
             Error
     end.
 
-
 %% application callbacks
 
 start(_Type, _StartArgs) ->
@@ -105,7 +102,6 @@ start(_Type, _StartArgs) ->
 
 stop(_State) ->
     ok.
-
 
 %% supervisor callbacks
 
@@ -130,6 +126,5 @@ init([]) ->
             id => seppen_rest,
             start => {seppen_rest, start_link, []}
         }
-
     ],
     {ok, {#{}, Children}}.

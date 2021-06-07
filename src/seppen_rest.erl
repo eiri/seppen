@@ -25,7 +25,6 @@
     delete_resource/2
 ]).
 
-
 %% gen_server callbacks
 
 start_link() ->
@@ -54,7 +53,6 @@ terminate(_Reason, _Ctx) ->
 
 handle_info({'DOWN', _, process, Pid, Reason}, #{pid := Pid}) ->
     {stop, {cowboy_down, Reason}, #{}}.
-
 
 %% cowboy_rest callbacks
 

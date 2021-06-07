@@ -8,6 +8,10 @@ COOKIE := snowflake
 .PHONY: all
 all: build test
 
+.PHONY: format
+format:
+	rebar3 fmt
+
 .PHONY: build
 build:
 	rebar3 compile

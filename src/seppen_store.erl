@@ -18,7 +18,6 @@
 
 -record(kv, {key, value}).
 
-
 start_link(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [Name], []).
 
@@ -42,12 +41,15 @@ keys(Table, Value) ->
     Guards = [{'==', '$2', Value}],
     ets:select(Table, [{Head, Guards, ['$1']}]).
 
-
 init([Name]) ->
-    Tid = ets:new(Name, [set, named_table, protected,
-        {read_concurrency, true}, {keypos, #kv.key}]),
+    Tid = ets:new(Name, [
+        set,
+        named_table,
+        protected,
+        {read_concurrency, true},
+        {keypos, #kv.key}
+    ]),
     {ok, #{tid => Tid}}.
-
 
 handle_call({set, Key, Value}, _, #{tid := Tid} = Ctx) ->
     true = ets:insert(Tid, #kv{key = Key, value = Value}),
