@@ -39,8 +39,7 @@ init([]) ->
     ?LOG_INFO(#{status => up}),
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/", seppen_rest, []},
-            {"/:key", seppen_rest, []}
+            {"/[:key]", seppen_rest, []}
         ]}
     ]),
     Port = os:getenv("SEPPEN_PORT", "21285"),
@@ -80,11 +79,9 @@ content_types_accepted(Req, Ctx) ->
     Accepted = [{<<"application/octet-stream">>, set_resource}],
     {Accepted, Req, Ctx}.
 
-resource_exists(#{method := Method, path := <<"/">>} = Req, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => <<"/">>}, ?META),
+resource_exists(#{path := <<"/">>} = Req, Ctx) ->
     {true, Req, Ctx};
-resource_exists(#{method := Method, path := Path} = Req, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
+resource_exists(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
     IsMember = seppen:member(Key),
     {IsMember, Req, Ctx}.
@@ -98,24 +95,24 @@ generate_etag(Req, Ctx) ->
     {ETag, Req, Ctx}.
 
 get_resource(#{method := Method, path := <<"/">>} = Req, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => <<"/">>}, ?META),
+    ?LOG_INFO(#{act => Method, path => <<"/">>}, ?META),
     Body = lists:join(<<"\n">>, seppen:keys()),
     {Body, Req, Ctx};
 get_resource(#{method := Method, path := Path} = Req, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
+    ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
     {ok, Value} = seppen:get(Key),
     {Value, Req, Ctx}.
 
 set_resource(#{method := Method, path := Path} = Req0, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
+    ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req0),
     {ok, Value, Req1} = cowboy_req:read_body(Req0),
     ok = seppen:set(Key, Value),
     {true, Req1, Ctx}.
 
 delete_resource(#{method := Method, path := Path} = Req, Ctx) ->
-    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
+    ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
     ok = seppen:delete(Key),
     {true, Req, Ctx}.
