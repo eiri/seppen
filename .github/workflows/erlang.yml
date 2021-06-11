@@ -17,6 +17,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Format check
+      run: rebar3 fmt --check
     - name: Compile
       run: rebar3 compile
     - name: Unit tests
