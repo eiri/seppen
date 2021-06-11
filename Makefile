@@ -6,11 +6,15 @@ NODE := seppen-0-255@127.0.0.1
 COOKIE := snowflake
 
 .PHONY: all
-all: build test
+all: format-check build test
 
 .PHONY: format
 format:
-	rebar3 fmt
+	rebar3 fmt --write
+
+.PHONY: format-check
+format-check:
+	rebar3 fmt --check
 
 .PHONY: build
 build:
