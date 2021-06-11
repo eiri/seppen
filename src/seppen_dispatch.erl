@@ -1,5 +1,9 @@
 -module(seppen_dispatch).
 
+-include_lib("kernel/include/logger.hrl").
+
+-define(META, #{domain => [seppen], name => dispatch}).
+
 -export([start_link/0, init/1, all_shards/0, shards/1]).
 
 -record(shard, {node, name, from, to}).
@@ -16,11 +20,16 @@ all_shards() ->
 shards(<<N:8, _/binary>>) ->
     shards(N);
 shards(N) when is_integer(N) ->
+    ?LOG_INFO(#{act => ask_shards, key => N}, ?META),
     Head = #shard{from = '$1', to = '$2', node = '$3', _ = '_'},
     Guards = [{'=<', '$1', N}, {'>=', '$2', N}],
-    ets:select(?MODULE, [{Head, Guards, ['$3']}]).
+    Shards = ets:select(?MODULE, [{Head, Guards, ['$3']}]),
+    ?LOG_INFO(#{act => got_shards, shards => Shards}, ?META),
+    Shards.
 
 init(Parent) ->
+    logger:set_process_metadata(#{domain => [seppen], name => ?MODULE}),
+    ?LOG_INFO(#{status => up}),
     register(?MODULE, self()),
     ets:new(?MODULE, [
         bag,
@@ -37,17 +46,21 @@ init(Parent) ->
 loop(Parent) ->
     receive
         build_map ->
+            ?LOG_INFO(#{act => build_map}),
             build_map(),
             {ok, _} = timer:send_after(?REFRESH_TIME, build_map),
             loop(Parent);
         {nodeup, Node} ->
+            ?LOG_INFO(#{act => nodeup, node => Node}),
             Ranges = get_ranges(Node),
             ets:insert(?MODULE, Ranges),
             loop(Parent);
         {nodedown, Node} ->
+            ?LOG_INFO(#{act => nodedown, node => Node}),
             ets:delete(?MODULE, Node),
             loop(Parent);
         {system, From, Request} ->
+            ?LOG_INFO(#{act => system, req => Request}),
             sys:handle_system_msg(Request, From, Parent, ?MODULE, [], [])
     end.
 

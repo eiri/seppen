@@ -1,5 +1,9 @@
 -module(seppen_rest).
 
+-include_lib("kernel/include/logger.hrl").
+
+-define(META, #{domain => [seppen], name => rest}).
+
 %% gen_server api & callbacks.
 %% cheating here, using gen_server funcs without declaring behaviour
 -export([
@@ -31,6 +35,8 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
+    logger:set_process_metadata(#{domain => [seppen], name => ?MODULE}),
+    ?LOG_INFO(#{status => up}),
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/", seppen_rest, []},
@@ -52,6 +58,7 @@ terminate(_Reason, _Ctx) ->
     ok.
 
 handle_info({'DOWN', _, process, Pid, Reason}, #{pid := Pid}) ->
+    ?LOG_INFO(#{status => down}),
     {stop, {cowboy_down, Reason}, #{}}.
 
 %% cowboy_rest callbacks
@@ -73,9 +80,11 @@ content_types_accepted(Req, Ctx) ->
     Accepted = [{<<"application/octet-stream">>, set_resource}],
     {Accepted, Req, Ctx}.
 
-resource_exists(#{path := <<"/">>} = Req, Ctx) ->
+resource_exists(#{method := Method, path := <<"/">>} = Req, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => <<"/">>}, ?META),
     {true, Req, Ctx};
-resource_exists(Req, Ctx) ->
+resource_exists(#{method := Method, path := Path} = Req, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
     IsMember = seppen:member(Key),
     {IsMember, Req, Ctx}.
@@ -88,21 +97,25 @@ generate_etag(Req, Ctx) ->
     ETag = iolist_to_binary([$", seppen_hash:to_hex(Hmac), $"]),
     {ETag, Req, Ctx}.
 
-get_resource(#{path := <<"/">>} = Req, Ctx) ->
+get_resource(#{method := Method, path := <<"/">>} = Req, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => <<"/">>}, ?META),
     Body = lists:join(<<"\n">>, seppen:keys()),
     {Body, Req, Ctx};
-get_resource(Req, Ctx) ->
+get_resource(#{method := Method, path := Path} = Req, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
     {ok, Value} = seppen:get(Key),
     {Value, Req, Ctx}.
 
-set_resource(Req0, Ctx) ->
+set_resource(#{method := Method, path := Path} = Req0, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req0),
     {ok, Value, Req1} = cowboy_req:read_body(Req0),
     ok = seppen:set(Key, Value),
     {true, Req1, Ctx}.
 
-delete_resource(Req, Ctx) ->
+delete_resource(#{method := Method, path := Path} = Req, Ctx) ->
+    ?LOG_INFO(#{ack => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
     ok = seppen:delete(Key),
     {true, Req, Ctx}.
