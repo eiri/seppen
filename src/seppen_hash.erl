@@ -23,5 +23,5 @@ to_hex(Bin) ->
                 true -> 87 + N
             end
         end
-        || <<N:4>> <= Bin
+     || <<N:4>> <= Bin
     ].
