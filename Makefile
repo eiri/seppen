@@ -39,8 +39,16 @@ dist:
 dist_clean:
 	kill $(shell ps aux | grep '\-name [c]t' | awk '{print $$2}')
 
+.PHONY: release
+release:
+	rebar3 release
+
 .PHONY: run
-run:
+run: release
+	$(CURDIR)/_build/default/rel/seppen/bin/seppen foreground
+
+.PHONY: shell
+shell:
 	rebar3 shell --name $(NODE) --setcookie $(COOKIE) --apps=$(PROJECT)
 
 .PHONY: clean
@@ -48,16 +56,5 @@ clean:
 	rm -rf $(CURDIR)/_build/default/rel
 	rm -rf $(CURDIR)/_build/default/lib/seppen
 	rm -rf $(CURDIR)/_build/test
+	rm -rf $(CURDIR)/_build/prod
 	rebar3 clean
-
-.PHONY: release
-release:
-	rebar3 release
-
-.PHONY: release-run
-release-run:
-	$(CURDIR)/_build/default/rel/seppen/bin/seppen foreground
-
-.PHONY: tar
-tar:
-	rebar3 tar
