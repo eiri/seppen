@@ -2,7 +2,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--define(META, #{domain => [seppen], name => rest}).
+-define(META, #{domain => [seppen]}).
 
 %% gen_server api & callbacks.
 %% cheating here, using gen_server funcs without declaring behaviour
@@ -35,7 +35,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    logger:set_process_metadata(#{domain => [seppen], name => ?MODULE}),
+    logger:set_process_metadata(?META),
     ?LOG_INFO(#{status => up}),
     Dispatch = cowboy_router:compile([
         {'_', [

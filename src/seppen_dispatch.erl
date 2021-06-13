@@ -2,7 +2,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--define(META, #{domain => [seppen], name => dispatch}).
+-define(META, #{domain => [seppen]}).
 
 -export([start_link/0, init/1, all_shards/0, shards/1]).
 
