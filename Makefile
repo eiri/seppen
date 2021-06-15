@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := all
 
+DOCKER_USER := starcrust
 PROJECT := seppen
 
 NODE := seppen-0-255@127.0.0.1
@@ -46,6 +47,10 @@ release:
 .PHONY: run
 run: release
 	$(CURDIR)/_build/default/rel/seppen/bin/seppen foreground
+
+.PHONY: docker
+docker:
+	docker build -t $(DOCKER_USER)/$(PROJECT) .
 
 .PHONY: shell
 shell:
