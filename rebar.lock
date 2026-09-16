@@ -1,16 +1,14 @@
-[{<<"cowboy">>,
-  {git,"https://github.com/ninenines/cowboy",
-       {ref,"04ca4c5d31a92d4d3de087bbd7d6021dc4a6d409"}},
-  0},
- {<<"cowlib">>,
-  {git,"https://github.com/ninenines/cowlib",
-       {ref,"e9448e5628c8c1d9083223ff973af8de31a566d1"}},
-  1},
- {<<"flatlog">>,
-  {git,"https://github.com/ferd/flatlog",
-       {ref,"24baef3298bd7b6a4a94a9f021d5f492ad98d691"}},
-  0},
- {<<"ranch">>,
-  {git,"https://github.com/ninenines/ranch",
-       {ref,"a692f44567034dacf5efcaa24a24183788594eb7"}},
-  1}].
+{"1.2.0",
+[{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.19.0">>},0},
+ {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.20.0">>},1},
+ {<<"ranch">>,{pkg,<<"ranch">>,<<"2.3.0">>},1}]}.
+[
+{pkg_hash,[
+ {<<"cowboy">>, <<"78B9D92D25A23E56D7341040B67946C04067CD77DE966E2372865F673A8E6F59">>},
+ {<<"cowlib">>, <<"BB525377BA634CD6D68BAC7BFF5D98571F738806139D335DACA827717C5DC172">>},
+ {<<"ranch">>, <<"7DE7B041A9A6A5091A3AA5898D66C0564BE671D87DB4F9D63B1B5EE775B097DF">>}]},
+{pkg_hash_ext,[
+ {<<"cowboy">>, <<"986DAE81F99FCB78EF2D8EFC21D738CEE189410840EEAF32ECA84ADA81DCF6D4">>},
+ {<<"cowlib">>, <<"7D41A0DD2C093041FF3779AC5FE8A1585A68EC7CB2DD1DE0536BDD2452FD7BA1">>},
+ {<<"ranch">>, <<"6168EC49409D982F7CFBD83DD083144F6CBE67CAA4036551D2F0A3AD67C9D023">>}]}
+].

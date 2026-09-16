@@ -14,8 +14,7 @@
         sasl,
         ranch,
         cowlib,
-        cowboy,
-        flatlog
+        cowboy
     ]},
     {mod, {seppen, []}}
 ]}.
