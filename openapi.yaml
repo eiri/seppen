@@ -1,0 +1,142 @@
+openapi: 3.1.0
+info:
+  title: Seppen
+  description: Simple distributed in-memory key-value store
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://github.com/eiri/seppen/blob/master/LICENSE
+security: []
+servers:
+  - url: http://localhost:21285
+paths:
+  /:
+    get:
+      operationId: listKeys
+      summary: List stored keys
+      responses:
+        "200":
+          description: Newline-separated keys
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /{key}:
+    parameters:
+      - name: key
+        in: path
+        description: Stored record key
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getValue
+      summary: Get a value
+      parameters:
+        - name: If-None-Match
+          in: header
+          description: Return 304 when the current ETag matches this value
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stored value
+          headers:
+            ETag:
+              description: Value HMAC
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: Not modified
+        "404":
+          description: Key not found
+        "503":
+          description: Value unavailable
+    put:
+      operationId: putValue
+      summary: Store a value
+      parameters:
+        - name: If-Match
+          in: header
+          description: Update only when the current ETag matches this value
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              maxLength: 1048576
+      responses:
+        "201":
+          description: Value created
+        "204":
+          description: Value updated
+        "412":
+          description: ETag precondition failed
+        "413":
+          description: Value exceeds 1 MiB
+        "415":
+          description: Unsupported media type
+        "503":
+          description: Storage unavailable
+    delete:
+      operationId: deleteValue
+      summary: Delete a value
+      parameters:
+        - name: If-Match
+          in: header
+          description: Delete only when the current ETag matches this value
+          required: false
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Value deleted
+        "404":
+          description: Key not found
+        "412":
+          description: ETag precondition failed
+        "503":
+          description: Storage unavailable
+  /healthz:
+    get:
+      operationId: checkHealth
+      summary: Check process health
+      responses:
+        "200":
+          description: Process is running
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "ok\n"
+  /readyz:
+    get:
+      operationId: checkReadiness
+      summary: Check cluster readiness
+      responses:
+        "200":
+          description: All shard ranges are available
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "ok\n"
+        "503":
+          description: One or more shard ranges are unavailable
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "not ready\n"
