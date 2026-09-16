@@ -42,8 +42,8 @@ init([]) ->
             {"/[:key]", seppen_rest, []}
         ]}
     ]),
-    Port = os:getenv("SEPPEN_PORT", "21285"),
-    TransportOpts = [{port, list_to_integer(Port)}],
+    Port = port(),
+    TransportOpts = [{port, Port}],
     ProtocolOpts = #{
         env => #{dispatch => Dispatch}
     },
@@ -59,6 +59,24 @@ terminate(_Reason, _Ctx) ->
 handle_info({'DOWN', _, process, Pid, Reason}, #{pid := Pid}) ->
     ?LOG_INFO(#{status => down}),
     {stop, {cowboy_down, Reason}, #{}}.
+
+port() ->
+    {ok, ConfigPort} = application:get_env(seppen, port),
+    case os:getenv("SEPPEN_PORT") of
+        false -> parse_port(ConfigPort);
+        EnvPort -> parse_port(EnvPort)
+    end.
+
+parse_port(Port) when is_integer(Port), Port > 0, Port =< 65535 ->
+    Port;
+parse_port(Port) when is_list(Port) ->
+    try
+        parse_port(list_to_integer(Port))
+    catch
+        error:badarg -> error({invalid_port, Port})
+    end;
+parse_port(Port) ->
+    error({invalid_port, Port}).
 
 %% cowboy_rest callbacks
 

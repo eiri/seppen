@@ -1,20 +1,21 @@
 {application, seppen, [
-    {description, "Simple distributed in-memory key-value store "},
+    {description, "Simple distributed in-memory key-value store"},
     {vsn, "1.0.0"},
     {modules, [
         seppen,
-        seppen_store,
-        seppen_dispatch
+        seppen_dispatch,
+        seppen_hash,
+        seppen_rest,
+        seppen_store
     ]},
-    {registered, [seppen, seppend_sup, seppen_store]},
+    {registered, [seppen, seppen_dispatch, seppen_index, seppen_rest, seppen_store]},
     {applications, [
         kernel,
         stdlib,
         crypto,
         sasl,
-        ranch,
-        cowlib,
         cowboy
     ]},
+    {env, [{port, 21285}]},
     {mod, {seppen, []}}
 ]}.
