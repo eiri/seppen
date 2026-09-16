@@ -5,6 +5,7 @@
         seppen,
         seppen_dispatch,
         seppen_hash,
+        seppen_health,
         seppen_rest,
         seppen_store
     ]},

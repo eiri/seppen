@@ -29,6 +29,8 @@
 ]).
 
 -export([
+    health_live/1,
+    health_ready/1,
     rest_put/1,
     rest_put_chunks/1,
     rest_put_too_large/1,
@@ -110,6 +112,8 @@ groups() ->
             store_concurrent_set
         ]},
         {rest, [sequence], [
+            health_live,
+            health_ready,
             rest_put_chunks,
             rest_put_too_large,
             rest_put,
@@ -269,6 +273,16 @@ store_concurrent_set(_Config) ->
         Values
     ),
     ok = seppen:delete(Key).
+
+health_live(Config) ->
+    BaseURL = ?config(base_url, Config),
+    {ok, {{_HTTPVer, 200, _Reason}, _Headers, "ok\n"}} =
+        httpc:request(BaseURL ++ "/healthz").
+
+health_ready(Config) ->
+    BaseURL = ?config(base_url, Config),
+    {ok, {{_HTTPVer, 200, _Reason}, _Headers, "ok\n"}} =
+        httpc:request(BaseURL ++ "/readyz").
 
 rest_put_chunks(Config) ->
     BaseURL = ?config(base_url, Config),
