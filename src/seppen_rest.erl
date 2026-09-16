@@ -80,8 +80,8 @@ parse_port(Port) ->
 
 %% cowboy_rest callbacks
 
-init(Req, Opts) ->
-    {cowboy_rest, Req, Opts}.
+init(Req, _Opts) ->
+    {cowboy_rest, Req, #{}}.
 
 allowed_methods(#{path := <<"/">>} = Req, Ctx) ->
     {[<<"GET">>], Req, Ctx};
@@ -101,15 +101,15 @@ resource_exists(#{path := <<"/">>} = Req, Ctx) ->
     {true, Req, Ctx};
 resource_exists(Req, Ctx) ->
     Key = cowboy_req:binding(key, Req),
-    IsMember = seppen:member(Key),
-    {IsMember, Req, Ctx}.
+    case seppen:hmac(Key) of
+        {ok, ResourceHmac} -> {true, Req, Ctx#{hmac => ResourceHmac}};
+        {error, not_found} -> {false, Req, Ctx}
+    end.
 
 generate_etag(#{path := <<"/">>} = Req, Ctx) ->
     {undefined, Req, Ctx};
-generate_etag(Req, Ctx) ->
-    Key = cowboy_req:binding(key, Req),
-    {ok, Hmac} = seppen:hmac(Key),
-    ETag = iolist_to_binary([$", seppen_hash:to_hex(Hmac), $"]),
+generate_etag(Req, #{hmac := ResourceHmac} = Ctx) ->
+    ETag = iolist_to_binary([$", seppen_hash:to_hex(ResourceHmac), $"]),
     {ETag, Req, Ctx}.
 
 get_resource(#{method := Method, path := <<"/">>} = Req, Ctx) ->
@@ -119,18 +119,73 @@ get_resource(#{method := Method, path := <<"/">>} = Req, Ctx) ->
 get_resource(#{method := Method, path := Path} = Req, Ctx) ->
     ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
-    {ok, Value} = seppen:get(Key),
-    {Value, Req, Ctx}.
+    case seppen:get(Key) of
+        {ok, Value} ->
+            case seppen_hash:hmac(Value) =:= maps:get(hmac, Ctx) of
+                true -> {Value, Req, Ctx};
+                false -> reply_error(503, Req, Ctx)
+            end;
+        {error, _} ->
+            reply_error(503, Req, Ctx)
+    end.
 
 set_resource(#{method := Method, path := Path} = Req0, Ctx) ->
     ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req0),
-    {ok, Value, Req1} = cowboy_req:read_body(Req0),
-    ok = seppen:set(Key, Value),
-    {true, Req1, Ctx}.
+    case read_value(Req0) of
+        {ok, Value, Req1} -> set_resource(Key, Value, Req1, Ctx);
+        {error, too_large, Req1} -> reply_error(413, Req1, Ctx)
+    end.
+
+set_resource(Key, Value, Req, Ctx) ->
+    Result =
+        case {cowboy_req:header(<<"if-match">>, Req), maps:find(hmac, Ctx)} of
+            {undefined, _} -> seppen:set(Key, Value);
+            {_, {ok, ExpectedHmac}} -> seppen:maybe_set(Key, ExpectedHmac, Value);
+            {_, error} -> {error, precondition_failed}
+        end,
+    case Result of
+        ok -> {true, Req, Ctx};
+        {error, precondition_failed} -> reply_error(412, Req, Ctx);
+        {error, _} -> reply_error(503, Req, Ctx)
+    end.
 
 delete_resource(#{method := Method, path := Path} = Req, Ctx) ->
     ?LOG_INFO(#{act => Method, path => Path}, ?META),
     Key = cowboy_req:binding(key, Req),
-    ok = seppen:delete(Key),
-    {true, Req, Ctx}.
+    Result =
+        case {cowboy_req:header(<<"if-match">>, Req), maps:find(hmac, Ctx)} of
+            {undefined, _} -> seppen:delete(Key);
+            {_, {ok, ExpectedHmac}} -> seppen:maybe_delete(Key, ExpectedHmac);
+            {_, error} -> {error, precondition_failed}
+        end,
+    case Result of
+        ok -> {true, Req, Ctx};
+        {error, not_found} -> reply_error(404, Req, Ctx);
+        {error, precondition_failed} -> reply_error(412, Req, Ctx);
+        {error, _} -> reply_error(503, Req, Ctx)
+    end.
+
+read_value(Req) ->
+    {ok, Limit} = application:get_env(seppen, max_value_size),
+    read_value(Req, Limit, [], 0).
+
+read_value(Req0, Limit, Chunks, Size) ->
+    try cowboy_req:read_body(Req0, #{length => 65536}) of
+        {Status, Data, Req1} ->
+            NewSize = Size + byte_size(Data),
+            case NewSize > Limit of
+                true ->
+                    {error, too_large, Req1};
+                false when Status =:= more ->
+                    read_value(Req1, Limit, [Data | Chunks], NewSize);
+                false ->
+                    {ok, iolist_to_binary(lists:reverse([Data | Chunks])), Req1}
+            end
+    catch
+        exit:{request_error, payload_too_large, _} -> {error, too_large, Req0}
+    end.
+
+reply_error(Status, Req0, Ctx) ->
+    Req = cowboy_req:reply(Status, #{}, <<>>, Req0),
+    {stop, Req, Ctx}.

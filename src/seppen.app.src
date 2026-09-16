@@ -16,6 +16,6 @@
         sasl,
         cowboy
     ]},
-    {env, [{port, 21285}]},
+    {env, [{port, 21285}, {max_value_size, 1048576}]},
     {mod, {seppen, []}}
 ]}.

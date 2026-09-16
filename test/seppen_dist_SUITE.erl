@@ -93,7 +93,23 @@ dispatch_nodedown(Config) ->
     ?assertEqual([Node1], seppen_dispatch:shards(<<64:8, 0, 0, 0>>)),
     %% because I don't have hand-off yet
     ?assertEqual([], seppen_dispatch:shards(<<192:8, 0, 0, 0>>)),
-    ?assertEqual([Node1], seppen_dispatch:all_shards()).
+    ?assertEqual([Node1], seppen_dispatch:all_shards()),
+
+    [BaseURL, _] = ?config(urls, Config),
+    Value = value_in_range(128, 255),
+    Hmac = seppen_hash:hmac(Value),
+
+    MissingKey = <<"missing-value">>,
+    ok = gen_server:call({seppen_index, Node1}, {set, MissingKey, Hmac}),
+    MissingURL = BaseURL ++ "/" ++ binary_to_list(MissingKey),
+    {ok, {{_HTTPVer1, 503, _Reason1}, _Headers1, []}} = httpc:request(MissingURL),
+    ok = gen_server:call({seppen_index, Node1}, {delete, MissingKey}),
+
+    Key = <<"unavailable">>,
+    URL = BaseURL ++ "/" ++ binary_to_list(Key),
+    Req = {URL, [], "application/octet-stream", Value},
+    {ok, {{_HTTPVer2, 503, _Reason2}, _Headers2, []}} = httpc:request(put, Req, [], []),
+    ?assertNot(rpc:call(Node1, seppen_store, member, [seppen_index, Key])).
 
 dispatch_nodeup(Config) ->
     [_, Node2] = ?config(nodes, Config),
@@ -125,6 +141,17 @@ stop_node(Node) ->
             ok;
         false ->
             ok
+    end.
+
+value_in_range(From, To) ->
+    value_in_range(From, To, 0).
+
+value_in_range(From, To, N) ->
+    Value = integer_to_binary(N),
+    <<Shard:8, _/binary>> = seppen_hash:hmac(Value),
+    case Shard >= From andalso Shard =< To of
+        true -> Value;
+        false -> value_in_range(From, To, N + 1)
     end.
 
 sharding_put(Config) ->
@@ -232,11 +259,13 @@ sharding_delete(Config) ->
             {{_HTTPVer, Code, _Reason}, _Headers, Body} = Resp,
             ?assertEqual(204, Code),
             ?assertEqual([], Body),
-            %% confirm that key gone on both nodes
+            %% confirm that index and value gone on both nodes
             Key = integer_to_binary(I),
-            Args = [seppen_store, Key],
-            Reply = rpc:multicall(Nodes, seppen_store, member, Args),
-            ?assertEqual({[false, false], []}, Reply)
+            IndexReply = rpc:multicall(Nodes, seppen_store, member, [seppen_index, Key]),
+            ?assertEqual({[false, false], []}, IndexReply),
+            Hmac = seppen_hash:hmac(<<"number => ", I>>),
+            StoreReply = rpc:multicall(Nodes, seppen_store, member, [seppen_store, Hmac]),
+            ?assertEqual({[false, false], []}, StoreReply)
         end,
         lists:seq(1, 10)
     ).
