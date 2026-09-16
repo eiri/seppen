@@ -1,5 +1,5 @@
 # Seppen (雪片)
-![common tests](https://github.com/eiri/seppen/workflows/Erlang%20CI/badge.svg?branch=master&event=push)
+[![Erlang CI](https://github.com/eiri/seppen/actions/workflows/erlang.yml/badge.svg)](https://github.com/eiri/seppen/actions/workflows/erlang.yml)
 
 _Simple distributed in-memory key-value store_
 
