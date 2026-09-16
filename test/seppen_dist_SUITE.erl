@@ -27,17 +27,8 @@
 ]).
 
 init_per_suite(Config) ->
-    LocalHost = list_to_atom(net_adm:localhost()),
     Nodes = ['ct1-0-127@127.0.0.1', 'ct2-128-255@127.0.0.1'],
-    lists:foreach(
-        fun({Node, Port}) ->
-            ct_slave:start(LocalHost, Node, [
-                {erl_flags, "-pa ../../lib/*/ebin"},
-                {env, [{"SEPPEN_PORT", Port}]}
-            ])
-        end,
-        lists:zip(Nodes, ["21286", "21287"])
-    ),
+    [start_node(Node, Port) || {Node, Port} <- lists:zip(Nodes, ["21286", "21287"])],
 
     {_, []} = rpc:multicall(Nodes, application, ensure_all_started, [seppen]),
 
@@ -45,8 +36,7 @@ init_per_suite(Config) ->
     [{nodes, Nodes}, {urls, URLs} | Config].
 
 end_per_suite(Config) ->
-    Nodes = ?config(nodes, Config),
-    [ct_slave:stop(Node) || Node <- Nodes],
+    [stop_node(Node) || Node <- ?config(nodes, Config)],
     ok.
 
 init_per_group(dispatch, Config) ->
@@ -63,23 +53,11 @@ end_per_group(_, _Config) ->
 
 init_per_testcase(dispatch_nodedown, Config) ->
     [_, Node2] = ?config(nodes, Config),
-    Result = ct_slave:stop(Node2),
-    ?assertEqual({ok, Node2}, Result),
+    ok = stop_node(Node2),
     Config;
 init_per_testcase(_, Config) ->
     Config.
 
-end_per_testcase(dispatch_nodedown, Config) ->
-    [_, Node2] = ?config(nodes, Config),
-    LocalHost = list_to_atom(net_adm:localhost()),
-    Result = ct_slave:start(LocalHost, Node2, [
-        {erl_flags, "-pa ../../lib/*/ebin"},
-        {env, [{"SEPPEN_PORT", "21287"}]}
-    ]),
-    ?assertEqual({ok, Node2}, Result),
-    Result2 = rpc:call(Node2, application, ensure_all_started, [seppen]),
-    ?assertMatch({ok, _}, Result2),
-    ok;
 end_per_testcase(_, _Config) ->
     ok.
 
@@ -118,7 +96,36 @@ dispatch_nodedown(Config) ->
     ?assertEqual([Node1], seppen_dispatch:all_shards()).
 
 dispatch_nodeup(Config) ->
+    [_, Node2] = ?config(nodes, Config),
+    Node2 = start_node(Node2, "21287"),
+    {ok, _} = rpc:call(Node2, application, ensure_all_started, [seppen]),
     dispatch_all_nodes(Config).
+
+start_node(Node, Port) ->
+    [Name, Host] = string:split(atom_to_list(Node), "@", all),
+    Args = ["-setcookie", atom_to_list(erlang:get_cookie()), "-pa" | code:get_path()],
+    {ok, _Peer, Node} = peer:start(#{
+        name => Name,
+        host => Host,
+        args => Args,
+        env => [{"SEPPEN_PORT", Port}]
+    }),
+    Node.
+
+stop_node(Node) ->
+    case lists:member(Node, nodes()) of
+        true ->
+            monitor_node(Node, true),
+            true = rpc:cast(Node, init, stop, []),
+            receive
+                {nodedown, Node} -> ok
+            after 5000 -> error({stop_timeout, Node})
+            end,
+            monitor_node(Node, false),
+            ok;
+        false ->
+            ok
+    end.
 
 sharding_put(Config) ->
     Nodes = ?config(nodes, Config),
