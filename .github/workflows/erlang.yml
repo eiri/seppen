@@ -2,30 +2,60 @@ name: Erlang CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  test:
+    name: OTP ${{ matrix.otp }}
+    runs-on: ubuntu-24.04
 
-  build-and-tests:
-
-    runs-on: ubuntu-latest
-
-    container:
-      image: erlang:29.0.6
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: ["27.x", "28.x", "29.x"]
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Format check
-      run: rebar3 fmt --check
-    - name: Compile
-      run: rebar3 compile
-    - name: Unit tests
-      run: rebar3 eunit
-    - name: Start epmd
-      run: epmd -daemon
-    - name: System tests
-      run: rebar3 ct --name seppen-0-255@127.0.0.1 --setcookie YGzma2DLnRUUqJxR --suite seppen_SUITE
-    - name: Distributed tests
-      run: rebar3 ct --name ct_master@127.0.0.1 --setcookie YGzma2DLnRUUqJxR --suite seppen_dist_SUITE
+      - uses: actions/checkout@v7.0.1
+
+      - uses: erlef/setup-beam@v1.24.1
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: "3.27.0"
+
+      - uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cache/rebar3
+            _build
+          key: rebar-${{ runner.os }}-otp-${{ matrix.otp }}-${{ hashFiles('rebar.lock') }}
+
+      - name: Check formatting
+        run: rebar3 fmt --check
+
+      - name: Compile
+        run: rebar3 compile
+
+      - name: Run unit tests
+        run: rebar3 eunit
+
+      - name: Start EPMD
+        run: epmd -daemon
+
+      - name: Run system tests
+        run: rebar3 ct --name seppen-0-255@127.0.0.1 --setcookie ci-cookie --suite seppen_SUITE
+
+      - name: Run distributed tests
+        run: rebar3 ct --name ct_master@127.0.0.1 --setcookie ci-cookie --suite seppen_dist_SUITE
+
+      - name: Build production release
+        run: rebar3 as prod release
