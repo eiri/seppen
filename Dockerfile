@@ -1,6 +1,4 @@
-FROM erlang:alpine AS builder
-
-RUN apk add --no-cache git
+FROM erlang:29.0.6-alpine AS builder
 
 RUN mkdir /build
 WORKDIR /build
