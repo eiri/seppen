@@ -15,7 +15,7 @@ start_link() ->
 
 all_shards() ->
     Head = #shard{node = '$1', _ = '_'},
-    ets:select(?MODULE, [{Head, [], ['$1']}]).
+    lists:usort(ets:select(?MODULE, [{Head, [], ['$1']}])).
 
 shards(<<N:8, _/binary>>) ->
     shards(N);
@@ -141,7 +141,7 @@ shards_test_() ->
 test_all_shards() ->
     NodeA = 'a-0-255',
     NodeB = 'b-0-255',
-    NodeC = 'c-0-255',
+    NodeC = 'c-170-84',
     Ranges = lists:append([
         get_ranges(NodeA),
         get_ranges(NodeB),

@@ -23,11 +23,15 @@
     store_keys/1,
     store_delete/1,
     store_empty_keys/1,
-    store_keys_1/1
+    store_keys_1/1,
+    maybe_store_set/1,
+    store_concurrent_set/1
 ]).
 
 -export([
     rest_put/1,
+    rest_put_chunks/1,
+    rest_put_too_large/1,
     rest_put_conflict/1,
     rest_get/1,
     rest_get_if_none_match/1,
@@ -101,9 +105,13 @@ groups() ->
             store_keys,
             store_delete,
             store_empty_keys,
-            store_keys_1
+            store_keys_1,
+            maybe_store_set,
+            store_concurrent_set
         ]},
         {rest, [sequence], [
+            rest_put_chunks,
+            rest_put_too_large,
             rest_put,
             rest_put_conflict,
             rest_get,
@@ -216,6 +224,74 @@ store_keys_1(Config) ->
     %%
     ok = seppen:set(Key3, crypto:strong_rand_bytes(32)),
     ?assertEqual([], seppen:keys(VHmac)).
+
+maybe_store_set(_Config) ->
+    Key = <<"set-if">>,
+    First = <<"first">>,
+    Second = <<"second">>,
+    ok = seppen:set(Key, First),
+    {ok, FirstHmac} = seppen:hmac(Key),
+    ok = seppen:maybe_set(Key, FirstHmac, Second),
+    ?assertEqual({error, precondition_failed}, seppen:maybe_set(Key, FirstHmac, <<"stale">>)),
+    ?assertEqual({error, precondition_failed}, seppen:maybe_delete(Key, FirstHmac)),
+    ?assertEqual({ok, Second}, seppen:get(Key)),
+    {ok, SecondHmac} = seppen:hmac(Key),
+    ok = seppen:maybe_delete(Key, SecondHmac).
+
+store_concurrent_set(_Config) ->
+    Key = <<"concurrent">>,
+    Values = [<<I:32>> || I <- lists:seq(1, 10)],
+    Parent = self(),
+    Refs = [
+        begin
+            Ref = make_ref(),
+            spawn(fun() -> Parent ! {Ref, seppen:set(Key, Value)} end),
+            Ref
+        end
+     || Value <- Values
+    ],
+    [
+        receive
+            {Ref, Result} -> ?assertEqual(ok, Result)
+        after 5000 -> ct:fail({set_timeout, Ref})
+        end
+     || Ref <- Refs
+    ],
+    {ok, Value} = seppen:get(Key),
+    ?assert(lists:member(Value, Values)),
+    {ok, Hmac} = seppen:hmac(Key),
+    ?assertEqual(seppen_hash:hmac(Value), Hmac),
+    lists:foreach(
+        fun(OldValue) ->
+            OldHmac = seppen_hash:hmac(OldValue),
+            ?assert(OldHmac =:= Hmac orelse not seppen_store:member(seppen_store, OldHmac))
+        end,
+        Values
+    ),
+    ok = seppen:delete(Key).
+
+rest_put_chunks(Config) ->
+    BaseURL = ?config(base_url, Config),
+    URL = BaseURL ++ "/chunked",
+    Payload = binary:copy(<<"x">>, 70000),
+    Req = {URL, [], "application/octet-stream", Payload},
+    {ok, {{_HTTPVer, 201, _Reason}, _Headers, []}} = httpc:request(put, Req, [], []),
+    {ok, {{_HTTPVer2, 200, _Reason2}, _Headers2, Body}} = httpc:request(URL),
+    ?assertEqual(Payload, list_to_binary(Body)),
+    {ok, {{_HTTPVer3, 204, _Reason3}, _Headers3, []}} =
+        httpc:request(delete, {URL, []}, [], []).
+
+rest_put_too_large(Config) ->
+    BaseURL = ?config(base_url, Config),
+    URL = BaseURL ++ "/too-large",
+    ok = application:set_env(seppen, max_value_size, 8),
+    try
+        Req = {URL, [], "application/octet-stream", <<"123456789">>},
+        {ok, {{_HTTPVer, 413, _Reason}, _Headers, []}} = httpc:request(put, Req, [], []),
+        {ok, {{_HTTPVer2, 404, _Reason2}, _Headers2, []}} = httpc:request(URL)
+    after
+        ok = application:set_env(seppen, max_value_size, 1048576)
+    end.
 
 rest_put(Config) ->
     BaseURL = ?config(base_url, Config),
