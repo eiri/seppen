@@ -39,6 +39,8 @@ init([]) ->
     ?LOG_INFO(#{status => up}),
     Dispatch = cowboy_router:compile([
         {'_', [
+            {"/healthz", seppen_health, live},
+            {"/readyz", seppen_health, ready},
             {"/[:key]", seppen_rest, []}
         ]}
     ]),

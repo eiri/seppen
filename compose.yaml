@@ -1,0 +1,91 @@
+x-seppen: &seppen
+  build:
+    context: .
+  image: seppen:local
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 15s
+  environment: &seppen-env
+    SEPPEN_COOKIE: ${SEPPEN_COOKIE:-snowflake}
+    SEPPEN_HOSTS: seppen-a.local,seppen-b.local,seppen-c.local
+  healthcheck:
+    test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:21285/healthz]
+    interval: 5s
+    timeout: 3s
+    retries: 12
+
+services:
+  seppen-a:
+    <<: *seppen
+    hostname: seppen-a.local
+    environment:
+      <<: *seppen-env
+      SEPPEN_NODE_NAME: a-0-84@seppen-a.local
+    networks:
+      default:
+        aliases: [seppen-a.local]
+
+  seppen-b:
+    <<: *seppen
+    hostname: seppen-b.local
+    depends_on:
+      seppen-a:
+        condition: service_healthy
+    environment:
+      <<: *seppen-env
+      SEPPEN_NODE_NAME: b-85-169@seppen-b.local
+    networks:
+      default:
+        aliases: [seppen-b.local]
+
+  seppen-c:
+    <<: *seppen
+    hostname: seppen-c.local
+    depends_on:
+      seppen-b:
+        condition: service_healthy
+    environment:
+      <<: *seppen-env
+      SEPPEN_NODE_NAME: c-170-255@seppen-c.local
+    networks:
+      default:
+        aliases: [seppen-c.local]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:21285/readyz]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  proxy:
+    image: haproxy:3.2.23-alpine3.24@sha256:6343ce34a132a5dceaa24767d739df2bd519f8f7c1079ae39e4821334e8eb42e
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 10s
+    depends_on:
+      seppen-a:
+        condition: service_healthy
+      seppen-b:
+        condition: service_healthy
+      seppen-c:
+        condition: service_healthy
+    volumes:
+      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - 127.0.0.1:${SEPPEN_HTTP_PORT:-21285}:8080
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/readyz]
+      interval: 5s
+      timeout: 3s
+      retries: 6

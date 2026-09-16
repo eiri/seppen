@@ -4,7 +4,7 @@
 
 -define(META, #{domain => [seppen]}).
 
--export([start_link/0, init/1, all_shards/0, shards/1]).
+-export([start_link/0, init/1, all_shards/0, shards/1, ready/0]).
 
 -record(shard, {node, name, from, to}).
 
@@ -26,6 +26,14 @@ shards(N) when is_integer(N) ->
     Shards = ets:select(?MODULE, [{Head, Guards, ['$3']}]),
     ?LOG_INFO(#{act => got_shards, shards => Shards}, ?META),
     Shards.
+
+ready() ->
+    Head = #shard{from = '$1', to = '$2', _ = '_'},
+    Ranges = ets:select(?MODULE, [{Head, [], [{{'$1', '$2'}}]}]),
+    lists:all(
+        fun(N) -> lists:any(fun({From, To}) -> From =< N andalso To >= N end, Ranges) end,
+        lists:seq(0, 255)
+    ).
 
 init(Parent) ->
     logger:set_process_metadata(#{domain => [seppen], name => ?MODULE}),
@@ -67,12 +75,19 @@ loop(Parent) ->
 hosts() ->
     case persistent_term:get(seppen_hosts, undefined) of
         undefined ->
-            Hosts = hosts(net_adm:host_file()),
+            Hosts =
+                case os:getenv("SEPPEN_HOSTS") of
+                    false -> hosts(net_adm:host_file());
+                    Value -> parse_hosts(Value)
+                end,
             persistent_term:put(seppen_hosts, Hosts),
             Hosts;
         Hosts ->
             Hosts
     end.
+
+parse_hosts(Value) ->
+    [list_to_atom(Host) || Host <- string:lexemes(Value, ", ")].
 
 hosts({error, _}) ->
     {ok, Host} = inet:gethostname(),
@@ -130,6 +145,8 @@ shards_test_() ->
         end,
         [
             {"all shards", fun test_all_shards/0},
+            {"ready", fun test_ready/0},
+            {"not ready", fun test_not_ready/0},
             {"all avail, 1 shard, 1 copy", fun test_shards_1_1/0},
             {"all avail, 1 shard, 3 copies", fun test_shards_1_3/0},
             {"all avail, 3 shard, 1 copy", fun test_shards_3_1/0},
@@ -149,6 +166,19 @@ test_all_shards() ->
     ]),
     ets:insert(?MODULE, Ranges),
     ?assertEqual([NodeA, NodeB, NodeC], lists:sort(all_shards())).
+
+test_ready() ->
+    Nodes = ['a-0-84', 'b-85-169', 'c-170-255'],
+    ets:insert(?MODULE, lists:append([get_ranges(Node) || Node <- Nodes])),
+    ?assert(ready()).
+
+test_not_ready() ->
+    Nodes = ['a-0-84', 'c-170-255'],
+    ets:insert(?MODULE, lists:append([get_ranges(Node) || Node <- Nodes])),
+    ?assertNot(ready()).
+
+parse_hosts_test() ->
+    ?assertEqual([seppen_a, seppen_b, seppen_c], parse_hosts("seppen_a,seppen_b seppen_c")).
 
 test_shards_1_1() ->
     Node = 'a-0-255',

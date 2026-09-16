@@ -52,6 +52,14 @@ run: release
 docker:
 	docker build -t $(DOCKER_USER)/$(PROJECT) .
 
+.PHONY: compose-up
+compose-up:
+	docker compose up --build --wait
+
+.PHONY: compose-down
+compose-down:
+	docker compose down
+
 .PHONY: shell
 shell:
 	rebar3 shell --name $(NODE) --setcookie $(COOKIE) --apps=$(PROJECT)

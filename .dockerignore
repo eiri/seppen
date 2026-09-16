@@ -1,3 +1,6 @@
-_build
+.git
 .github
+_build
+*.md
 integration
+test
